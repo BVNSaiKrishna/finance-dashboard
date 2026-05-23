@@ -1,15 +1,15 @@
 {
   "name": "Finance Dashboard",
   "short_name": "Finance",
-  "description": "Monthly personal finance dashboard",
-  "start_url": "/",
-  "scope": "/",
+  "description": "Monthly personal finance dashboard with category analytics.",
+  "start_url": "/finance-dashboard/",
+  "scope": "/finance-dashboard/",
   "display": "standalone",
   "background_color": "#090a0f",
   "theme_color": "#090a0f",
   "icons": [
     {
-      "src": "/app-icon.svg",
+      "src": "/finance-dashboard/app-icon.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
