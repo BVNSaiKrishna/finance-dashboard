@@ -50,7 +50,7 @@
 .dashboard {
   position: relative;
   z-index: 1;
-  width: min(100%, 1120px);
+  width: min(95%, 1380px);
   margin: 0 auto;
 }
 
