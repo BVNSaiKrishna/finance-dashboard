@@ -106,8 +106,9 @@ function sortByDateDesc(a, b) {
 function getStoredMonthlyBudget() {
   try {
     const stored = localStorage.getItem(BUDGET_STORAGE_KEY);
-    const parsed = Number(stored);
+    if (stored === null) return DEFAULT_MONTHLY_BUDGET;
 
+    const parsed = Number(stored);
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : DEFAULT_MONTHLY_BUDGET;
   } catch {
     return DEFAULT_MONTHLY_BUDGET;
