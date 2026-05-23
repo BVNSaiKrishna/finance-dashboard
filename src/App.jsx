@@ -14,6 +14,8 @@ const LOCAL_TX_STORAGE_KEY = "finance-dashboard-local-transactions";
 const CUSTOM_SHEET_ID_KEY = "finance-dashboard-custom-sheet-id";
 const CUSTOM_SHEET_NAME_KEY = "finance-dashboard-custom-sheet-name";
 const CUSTOM_SHEET_ACTIVE_KEY = "finance-dashboard-custom-sheet-active";
+const CATEGORY_BUDGETS_KEY = "finance-dashboard-category-budgets";
+const THEME_KEY = "finance-dashboard-theme";
 
 const currency = new Intl.NumberFormat("en-IN", {
   maximumFractionDigits: 0,
@@ -156,6 +158,23 @@ function extractSpreadsheetId(input) {
   return match ? match[1] : clean;
 }
 
+function getStoredCategoryBudgets() {
+  try {
+    const stored = localStorage.getItem(CATEGORY_BUDGETS_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    return {};
+  }
+}
+
+function getStoredTheme() {
+  try {
+    return localStorage.getItem(THEME_KEY) || "dark";
+  } catch {
+    return "dark";
+  }
+}
+
 function buildDonutGradient(categories, total) {
   if (total <= 0 || categories.length === 0) {
     return "rgba(255, 255, 255, 0.08)";
@@ -197,6 +216,12 @@ export default function App() {
   const [connectorStatus, setConnectorStatus] = useState("idle"); // idle, checking, success, error
   const [connectorError, setConnectorError] = useState("");
 
+  // Upgrade Feature States
+  const [theme, setTheme] = useState(getStoredTheme);
+  const [categoryBudgets, setCategoryBudgets] = useState(getStoredCategoryBudgets);
+  const [editingCategory, setEditingCategory] = useState(null); // name of category currently editing budget
+  const [editingBudgetVal, setEditingBudgetVal] = useState("");
+
   // Sandbox Simulator Form States
   const [newExpenseName, setNewExpenseName] = useState("");
   const [newExpenseAmount, setNewExpenseAmount] = useState("");
@@ -204,6 +229,16 @@ export default function App() {
   const [newExpenseDate, setNewExpenseDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [customCategory, setCustomCategory] = useState("");
   const [isCustomCategory, setIsCustomCategory] = useState(false);
+
+  // Sync state effects
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem(THEME_KEY, theme);
+  }, [theme]);
+
+  useEffect(() => {
+    localStorage.setItem(CATEGORY_BUDGETS_KEY, JSON.stringify(categoryBudgets));
+  }, [categoryBudgets]);
 
   useEffect(() => {
     localStorage.setItem(BUDGET_STORAGE_KEY, String(monthlyBudget));
@@ -373,6 +408,111 @@ export default function App() {
   const budgetUsed = monthlyBudget > 0 ? (monthlyTotal / monthlyBudget) * 100 : 0;
   const budgetRemaining = monthlyBudget - monthlyTotal;
 
+  // --- UPGRADE: PREDICTIVE METRICS & SPENDING VELOCITY ---
+  const { projectedEOMSpent, dailyAllowanceRemaining, daysRemaining, daysElapsed, totalDaysInMonth } = useMemo(() => {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth() + 1;
+    const currentMonthKey = `${currentYear}-${String(currentMonth).padStart(2, "0")}`;
+
+    const isCurrentMonth = activeMonth === currentMonthKey;
+    let elapsed = 30;
+    let totalDays = 30;
+
+    if (activeMonth) {
+      const [year, month] = activeMonth.split("-").map(Number);
+      totalDays = new Date(year, month, 0).getDate();
+      elapsed = isCurrentMonth ? Math.min(now.getDate(), totalDays) : totalDays;
+    }
+
+    const spentVelocity = elapsed > 0 ? monthlyTotal / elapsed : 0;
+    const projected = spentVelocity * totalDays;
+    const remaining = totalDays - elapsed;
+
+    const budgetLeft = Math.max(0, monthlyBudget - monthlyTotal);
+    const dailyAllowance = remaining > 0 ? budgetLeft / remaining : 0;
+
+    return {
+      projectedEOMSpent: projected,
+      dailyAllowanceRemaining: dailyAllowance,
+      daysRemaining: remaining,
+      daysElapsed: elapsed,
+      totalDaysInMonth: totalDays,
+    };
+  }, [activeMonth, monthlyTotal, monthlyBudget]);
+
+  // --- UPGRADE: SMART FINANCIAL INSIGHTS (AI INSIGHTS) ---
+  const insights = useMemo(() => {
+    const list = [];
+    if (!monthlyTransactions.length) return list;
+
+    // 1. Subscription detector (Identifies potential subscription services)
+    const suspectKeywords = [
+      "netflix", "spotify", "google", "youtube", "premium", "rent", "broadband",
+      "recharge", "sub", "membership", "cloud", "aws", "adobe", "apple", "microsoft", "github"
+    ];
+    const processedSubs = new Set();
+
+    monthlyTransactions.forEach((tx) => {
+      const lowerName = tx.name.toLowerCase();
+      const isSuspect = suspectKeywords.some(kw => lowerName.includes(kw));
+      if (isSuspect && !processedSubs.has(lowerName)) {
+        processedSubs.add(lowerName);
+        list.push({
+          type: "subscription",
+          title: "Potential Subscription Found",
+          description: `"${tx.name}" (${currency.format(tx.amount)}) matches recurring billing signatures.`,
+          icon: "📅"
+        });
+      }
+    });
+
+    // 2. Single spend spike (Any transaction consuming > 20% of monthly budget)
+    monthlyTransactions.forEach((tx) => {
+      if (monthlyBudget > 0 && tx.amount >= monthlyBudget * 0.2) {
+        list.push({
+          type: "spike",
+          title: "Single Spend Spike Alert",
+          description: `"${tx.name}" cost ${currency.format(tx.amount)}, consuming ${(tx.amount / monthlyBudget * 100).toFixed(0)}% of EOM capacity.`,
+          icon: "⚠️"
+        });
+      }
+    });
+
+    // 3. Positive Savings Trend
+    if (monthlyTotal < monthlyBudget * 0.5 && daysElapsed >= totalDaysInMonth * 0.5) {
+      list.push({
+        type: "vibe",
+        title: "Healthy Savings Track",
+        description: `Elapsed ${daysElapsed} days of the month but consumed only ${(monthlyTotal / monthlyBudget * 100).toFixed(0)}% of budget.`,
+        icon: "🎉"
+      });
+    }
+
+    // 4. Overspend Warning
+    if (monthlyTotal > monthlyBudget) {
+      list.push({
+        type: "spike",
+        title: "Budget Cap Overrun",
+        description: `Your active month spent total is ${currency.format(monthlyTotal - monthlyBudget)} over budget capacity!`,
+        icon: "🚨"
+      });
+    }
+
+    // 5. Monthly comparison trend
+    if (previousMonth && monthChangePercent !== 0) {
+      const isHigher = monthChange >= 0;
+      list.push({
+        type: isHigher ? "spike" : "vibe",
+        title: isHigher ? "Spending Up from Last Month" : "Savings Up from Last Month",
+        description: `You've spent ${currency.format(Math.abs(monthChange))} (${Math.abs(monthChangePercent).toFixed(0)}%) ${isHigher ? "more" : "less"} than last month.`,
+        icon: isHigher ? "📈" : "📉"
+      });
+    }
+
+    return list.slice(0, 3);
+  }, [monthlyTransactions, monthlyBudget, monthlyTotal, daysElapsed, totalDaysInMonth, previousMonth, monthChange, monthChangePercent]);
+
   const resetFilters = () => {
     setQuery("");
     setSelectedCategory("all");
@@ -471,6 +611,16 @@ export default function App() {
     setSheetTabInput("Expense");
   };
 
+  const handleSaveCategoryBudget = (categoryName) => {
+    const nextBudget = Math.max(0, Number(editingBudgetVal) || 0);
+    setCategoryBudgets((prev) => ({
+      ...prev,
+      [categoryName]: nextBudget,
+    }));
+    setEditingCategory(null);
+    setEditingBudgetVal("");
+  };
+
   const handleAddExpense = (e) => {
     e.preventDefault();
     if (!newExpenseName.trim() || !newExpenseAmount) return;
@@ -565,6 +715,15 @@ export default function App() {
 
           <div className="hero-actions">
             <button
+              className="btn-theme-toggle"
+              onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+              type="button"
+              title={`Switch to ${theme === "dark" ? "Light" : "Dark"} Mode`}
+            >
+              {theme === "dark" ? "☀️" : "🌙"}
+            </button>
+
+            <button
               className={`btn-connect-sheet ${isCustomActive ? "is-active" : ""}`}
               onClick={() => setIsConnectorOpen(true)}
               type="button"
@@ -650,9 +809,15 @@ export default function App() {
               </article>
 
               <article className="insight-panel">
-                <span className="section-label">Month total</span>
-                <strong>{currency.format(monthlyTotal)}</strong>
-                <small>Before filters</small>
+                <span className="section-label">EOM Projection</span>
+                <strong className={`eom-projected-value ${projectedEOMSpent > monthlyBudget ? "pulsing-crimson" : ""}`}>
+                  {currency.format(projectedEOMSpent)}
+                </strong>
+                <small>
+                  {projectedEOMSpent > monthlyBudget
+                    ? "⚠️ Est. overspend risk"
+                    : "✅ Est. within budget cap"}
+                </small>
               </article>
 
               <article className="insight-panel">
@@ -664,18 +829,9 @@ export default function App() {
               </article>
 
               <article className="insight-panel">
-                <span className="section-label">Month compare</span>
-                <strong>
-                  {previousMonth
-                    ? `${monthChange >= 0 ? "+" : "-"}${currency.format(Math.abs(monthChange))}`
-                    : "New"}
-                </strong>
-                <small>
-                  {previousMonth
-                    ? `${Math.abs(monthChangePercent).toFixed(0)}% ${monthChange >= 0 ? "higher" : "lower"
-                    } than previous month`
-                    : "No previous month to compare"}
-                </small>
+                <span className="section-label">Daily Allowance</span>
+                <strong>{currency.format(dailyAllowanceRemaining)}</strong>
+                <small>For remaining {daysRemaining} days</small>
               </article>
             </section>
 
@@ -786,6 +942,34 @@ export default function App() {
                 </div>
               </article>
             </section>
+
+            {insights.length > 0 && (
+              <section className="metric-card financial-insights-panel" aria-label="Smart Financial Advisor Insights">
+                <div className="section-heading">
+                  <div>
+                    <span className="section-label">🧠 AI-Style Advisor</span>
+                    <h2>Financial Pulse Insights</h2>
+                  </div>
+                </div>
+
+                <div className="insights-list">
+                  {insights.map((insight, idx) => (
+                    <article className="insight-item-card" key={idx}>
+                      <div className={`insight-icon-box ${
+                        insight.type === "subscription" ? "icon-sub" :
+                        insight.type === "spike" ? "icon-spike" : "icon-vibe"
+                      }`}>
+                        {insight.icon}
+                      </div>
+                      <div>
+                        <h4>{insight.title}</h4>
+                        <p>{insight.description}</p>
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              </section>
+            )}
 
             <section className="filter-panel" aria-label="Expense filters">
               <label>
@@ -991,22 +1175,91 @@ export default function App() {
                         </span>
                       </button>
 
-                      <div className="progress-track">
-                        <span
-                          className="progress-fill"
-                          style={{
-                            backgroundColor: color,
-                            width: `${progress}%`,
-                          }}
-                        />
-                      </div>
+                      {(() => {
+                        const hasCatBudget = categoryBudgets[category.name] !== undefined && categoryBudgets[category.name] > 0;
+                        const catBudgetVal = hasCatBudget ? categoryBudgets[category.name] : 0;
+                        const catUsagePercent = hasCatBudget ? (category.total / catBudgetVal) * 100 : 0;
 
-                      <div className="budget-row">
-                        <span>
-                          {budgetShare.toFixed(0)}% of monthly budget
-                        </span>
-                        <b>{currency.format(monthlyBudget)}</b>
-                      </div>
+                        // Dynamic class for progress colors
+                        let progressClass = "";
+                        if (hasCatBudget) {
+                          if (catUsagePercent >= 90) progressClass = "over-limit";
+                          else if (catUsagePercent >= 70) progressClass = "near-limit";
+                          else progressClass = "under-limit";
+                        }
+
+                        return (
+                          <>
+                            <div className="progress-track">
+                              <span
+                                className={`progress-fill ${progressClass}`}
+                                style={{
+                                  backgroundColor: progressClass ? undefined : color,
+                                  width: `${hasCatBudget ? Math.min(catUsagePercent, 100) : progress}%`,
+                                }}
+                              />
+                            </div>
+
+                            <div className="budget-row">
+                              {editingCategory === category.name ? (
+                                <form 
+                                  className="category-budget-form"
+                                  onSubmit={(e) => {
+                                    e.preventDefault();
+                                    handleSaveCategoryBudget(category.name);
+                                  }}
+                                >
+                                  <input
+                                    required
+                                    type="number"
+                                    min="1"
+                                    placeholder="Enter budget ₹..."
+                                    value={editingBudgetVal}
+                                    onChange={(e) => setEditingBudgetVal(e.target.value)}
+                                    autoFocus
+                                  />
+                                  <button type="submit" className="btn-save-budget">Save</button>
+                                  <button 
+                                    type="button" 
+                                    className="btn-cancel-budget"
+                                    onClick={() => {
+                                      setEditingCategory(null);
+                                      setEditingBudgetVal("");
+                                    }}
+                                  >
+                                    Cancel
+                                  </button>
+                                </form>
+                              ) : (
+                                <div className="category-budget-block">
+                                  <span>
+                                    {hasCatBudget ? (
+                                      <>
+                                        <strong>{catUsagePercent.toFixed(0)}%</strong> of Category Budget ({currency.format(category.total)} of {currency.format(catBudgetVal)})
+                                      </>
+                                    ) : (
+                                      `${budgetShare.toFixed(0)}% of monthly budget`
+                                    )}
+                                  </span>
+                                  {isOpen && (
+                                    <button
+                                      type="button"
+                                      className="btn-edit-budget-trigger"
+                                      onClick={() => {
+                                        setEditingCategory(category.name);
+                                        setEditingBudgetVal(hasCatBudget ? String(catBudgetVal) : "");
+                                      }}
+                                    >
+                                      {hasCatBudget ? "✏️ Edit Budget" : "➕ Set Budget"}
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                              <b>{hasCatBudget ? currency.format(catBudgetVal) : currency.format(monthlyBudget)}</b>
+                            </div>
+                          </>
+                        );
+                      })()}
 
                       {isOpen && (
                         <div className="transaction-list">
