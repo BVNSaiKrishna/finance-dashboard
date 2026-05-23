@@ -11,6 +11,9 @@ const palette = ["#f8d66d", "#5eead4", "#a78bfa", "#fb7185", "#7dd3fc", "#86efac
 const DEFAULT_MONTHLY_BUDGET = 50000;
 const BUDGET_STORAGE_KEY = "finance-dashboard-monthly-budget";
 const LOCAL_TX_STORAGE_KEY = "finance-dashboard-local-transactions";
+const CUSTOM_SHEET_ID_KEY = "finance-dashboard-custom-sheet-id";
+const CUSTOM_SHEET_NAME_KEY = "finance-dashboard-custom-sheet-name";
+const CUSTOM_SHEET_ACTIVE_KEY = "finance-dashboard-custom-sheet-active";
 
 const currency = new Intl.NumberFormat("en-IN", {
   maximumFractionDigits: 0,
@@ -70,16 +73,27 @@ function getDayKey(date) {
 }
 
 function normalizeTransaction(tx, index) {
-  const date = parseDate(tx.Date);
+  const txKeys = Object.keys(tx || {});
+  const findKey = (candidates) => {
+    const found = txKeys.find((k) => candidates.includes(k.toLowerCase()));
+    return found ? tx[found] : undefined;
+  };
+
+  const rawDate = findKey(["date"]);
+  const rawExpense = findKey(["expense", "item", "name", "title"]);
+  const rawAmount = findKey(["amount", "price", "cost"]);
+  const rawCategory = findKey(["category", "type", "tag"]);
+
+  const date = parseDate(rawDate);
 
   return {
-    id: `${tx.Date ?? "unknown"}-${tx.Expense ?? "expense"}-${tx.Amount ?? index}-${index}`,
-    amount: parseAmount(tx.Amount),
-    category: tx.Category?.trim() || "Other",
+    id: `${rawDate ?? "unknown"}-${rawExpense ?? "expense"}-${rawAmount ?? index}-${index}`,
+    amount: parseAmount(rawAmount),
+    category: rawCategory?.trim() || "Other",
     date,
-    dateLabel: tx.Date || "No date",
+    dateLabel: rawDate || "No date",
     dayKey: date ? getDayKey(date) : "undated",
-    name: tx.Expense?.trim() || "Untitled expense",
+    name: rawExpense?.trim() || "Untitled expense",
     monthKey: date ? getMonthKey(date) : "undated",
     raw: tx,
   };
@@ -111,6 +125,36 @@ function getStoredLocalTransactions() {
   }
 }
 
+function getStoredCustomSheetId() {
+  try {
+    return localStorage.getItem(CUSTOM_SHEET_ID_KEY) || "";
+  } catch {
+    return "";
+  }
+}
+
+function getStoredCustomSheetName() {
+  try {
+    return localStorage.getItem(CUSTOM_SHEET_NAME_KEY) || "Expense";
+  } catch {
+    return "Expense";
+  }
+}
+
+function getStoredCustomSheetActive() {
+  try {
+    return localStorage.getItem(CUSTOM_SHEET_ACTIVE_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function extractSpreadsheetId(input) {
+  const clean = String(input || "").trim();
+  const match = clean.match(/\/d\/([a-zA-Z0-9-_]+)/);
+  return match ? match[1] : clean;
+}
+
 function buildDonutGradient(categories, total) {
   if (total <= 0 || categories.length === 0) {
     return "rgba(255, 255, 255, 0.08)";
@@ -139,6 +183,19 @@ export default function App() {
   const [status, setStatus] = useState("loading");
   const [error, setError] = useState("");
 
+  // Custom Sheet Connection States
+  const [customSheetId, setCustomSheetId] = useState(getStoredCustomSheetId);
+  const [customSheetName, setCustomSheetName] = useState(getStoredCustomSheetName);
+  const [isCustomActive, setIsCustomActive] = useState(getStoredCustomSheetActive);
+  const [isConnectorOpen, setIsConnectorOpen] = useState(false);
+  const [sheetUrlInput, setSheetUrlInput] = useState(() => {
+    const storedId = getStoredCustomSheetId();
+    return storedId ? `https://docs.google.com/spreadsheets/d/${storedId}/edit` : "";
+  });
+  const [sheetTabInput, setSheetTabInput] = useState(getStoredCustomSheetName);
+  const [connectorStatus, setConnectorStatus] = useState("idle"); // idle, checking, success, error
+  const [connectorError, setConnectorError] = useState("");
+
   // Sandbox Simulator Form States
   const [newExpenseName, setNewExpenseName] = useState("");
   const [newExpenseAmount, setNewExpenseAmount] = useState("");
@@ -162,10 +219,19 @@ export default function App() {
       try {
         setStatus("loading");
         setError("");
-        const response = await fetch(SHEET_URL);
+        
+        const fetchUrl = isCustomActive && customSheetId.trim()
+          ? `https://opensheet.elk.sh/${customSheetId.trim()}/${customSheetName.trim() || "Expense"}`
+          : SHEET_URL;
+
+        const response = await fetch(fetchUrl);
 
         if (!response.ok) {
-          throw new Error(`Sheet request failed: ${response.status}`);
+          throw new Error(
+            response.status === 404 && isCustomActive
+              ? "Sheet tab not found or Spreadsheet is private. Make sure access is 'Anyone with the link can view'."
+              : `Sheet request failed: ${response.status}`
+          );
         }
 
         const data = await response.json();
@@ -187,7 +253,7 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [customSheetId, customSheetName, isCustomActive]);
 
   const combinedTransactions = useMemo(() => {
     const normalizedLocal = localTransactions.map((tx, index) =>
@@ -324,6 +390,86 @@ export default function App() {
     }));
   };
 
+  const handleConnectSheet = async (e) => {
+    e.preventDefault();
+    setConnectorStatus("checking");
+    setConnectorError("");
+
+    const extractedId = extractSpreadsheetId(sheetUrlInput);
+    const tabName = sheetTabInput.trim() || "Expense";
+
+    if (!extractedId) {
+      setConnectorStatus("error");
+      setConnectorError("Invalid Google Sheet URL or ID. Please check the URL.");
+      return;
+    }
+
+    const testUrl = `https://opensheet.elk.sh/${extractedId}/${tabName}`;
+
+    try {
+      const response = await fetch(testUrl);
+      if (!response.ok) {
+        throw new Error(
+          response.status === 404
+            ? "Sheet tab not found or Spreadsheet is private. Make sure access is 'Anyone with the link can view'."
+            : `Failed to load sheet: HTTP ${response.status}`
+        );
+      }
+
+      const data = await response.json();
+      if (!Array.isArray(data)) {
+        throw new Error("Fetched data is not in an expected list format.");
+      }
+
+      if (data.length === 0) {
+        throw new Error("Sheet is empty! Please add some transactions first.");
+      }
+
+      // Quick validation of the first item keys
+      const sample = data[0];
+      const keys = Object.keys(sample).map(k => k.toLowerCase());
+      
+      const hasDate = keys.includes("date");
+      const hasAmount = keys.includes("amount") || keys.includes("price") || keys.includes("cost");
+      const hasExpense = keys.includes("expense") || keys.includes("item") || keys.includes("name") || keys.includes("title");
+
+      if (!hasDate || !hasAmount || !hasExpense) {
+        throw new Error(
+          "Column verification failed. The sheet must contain columns for Date, Amount, and Expense/Item."
+        );
+      }
+
+      // Success! Update state and localStorage
+      setCustomSheetId(extractedId);
+      setCustomSheetName(tabName);
+      setIsCustomActive(true);
+
+      localStorage.setItem(CUSTOM_SHEET_ID_KEY, extractedId);
+      localStorage.setItem(CUSTOM_SHEET_NAME_KEY, tabName);
+      localStorage.setItem(CUSTOM_SHEET_ACTIVE_KEY, "true");
+
+      setConnectorStatus("success");
+      
+      // Auto-close drawer after a short delay
+      setTimeout(() => {
+        setIsConnectorOpen(false);
+        setConnectorStatus("idle");
+      }, 1500);
+    } catch (err) {
+      setConnectorStatus("error");
+      setConnectorError(err.message || "Failed to verify sheet. Please check the link and sharing settings.");
+    }
+  };
+
+  const handleResetToDemo = () => {
+    setIsCustomActive(false);
+    localStorage.setItem(CUSTOM_SHEET_ACTIVE_KEY, "false");
+    setConnectorStatus("idle");
+    setConnectorError("");
+    setSheetUrlInput("");
+    setSheetTabInput("Expense");
+  };
+
   const handleAddExpense = (e) => {
     e.preventDefault();
     if (!newExpenseName.trim() || !newExpenseAmount) return;
@@ -412,27 +558,37 @@ export default function App() {
             <p className="eyebrow">Personal finance</p>
             <h1>{currentMonthLabel}</h1>
             <p className="hero-copy">
-              Live spending intelligence from your expense sheet.
+              Live spending intelligence {isCustomActive ? "from your connected sheet" : "from your expense sheet"}.
             </p>
           </div>
 
-          <label className="month-control">
-            <span>Month</span>
-            <select
-              value={activeMonth}
-              onChange={(event) => {
-                setSelectedMonth(event.target.value);
-                resetFilters();
-              }}
-              disabled={monthOptions.length === 0}
+          <div className="hero-actions">
+            <button
+              className={`btn-connect-sheet ${isCustomActive ? "is-active" : ""}`}
+              onClick={() => setIsConnectorOpen(true)}
+              type="button"
             >
-              {monthOptions.map((month) => (
-                <option key={month.value} value={month.value}>
-                  {month.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              {isCustomActive ? "⚙️ Manage Sheet" : "✨ Connect Sheet"}
+            </button>
+
+            <label className="month-control">
+              <span>Month</span>
+              <select
+                value={activeMonth}
+                onChange={(event) => {
+                  setSelectedMonth(event.target.value);
+                  resetFilters();
+                }}
+                disabled={monthOptions.length === 0}
+              >
+                {monthOptions.map((month) => (
+                  <option key={month.value} value={month.value}>
+                    {month.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
         </header>
 
         {status === "loading" && (
@@ -872,6 +1028,109 @@ export default function App() {
           </>
         )}
       </section>
+
+      {/* Google Sheets Connector Drawer Overlay */}
+      <div 
+        className={`connector-overlay ${isConnectorOpen ? "is-open" : ""}`} 
+        onClick={() => setIsConnectorOpen(false)} 
+      />
+      <aside className={`connector-drawer ${isConnectorOpen ? "is-open" : ""}`} aria-label="Sheet Connector">
+        <div className="drawer-header">
+          <h2>Google Sheets Connection Center</h2>
+          <button className="btn-close-drawer" onClick={() => setIsConnectorOpen(false)} type="button">
+            &times;
+          </button>
+        </div>
+
+        <div className="drawer-body">
+          <p className="drawer-intro">
+            Connect any shared Google Sheet to visualize your transactions in real-time.
+          </p>
+
+          <form onSubmit={handleConnectSheet} className="connector-form">
+            <label className="budget-input">
+              <span>Google Sheet URL or ID</span>
+              <input
+                required
+                type="text"
+                placeholder="https://docs.google.com/spreadsheets/d/.../edit"
+                value={sheetUrlInput}
+                onChange={(e) => setSheetUrlInput(e.target.value)}
+              />
+            </label>
+
+            <label className="budget-input">
+              <span>Sheet Tab Name (case-sensitive)</span>
+              <input
+                required
+                type="text"
+                placeholder="e.g., Expense"
+                value={sheetTabInput}
+                onChange={(e) => setSheetTabInput(e.target.value)}
+              />
+            </label>
+
+            {connectorStatus === "checking" && (
+              <div className="connector-diagnostic diagnostic-checking">
+                <span className="spinner">🌀</span> Connecting and validating sheet columns...
+              </div>
+            )}
+
+            {connectorStatus === "success" && (
+              <div className="connector-diagnostic diagnostic-success">
+                ✅ Connected successfully! loaded data from sheet.
+              </div>
+            )}
+
+            {connectorStatus === "error" && (
+              <div className="connector-diagnostic diagnostic-error">
+                ❌ <strong>Error:</strong> {connectorError}
+              </div>
+            )}
+
+            <div className="drawer-actions">
+              <button
+                type="submit"
+                className="btn-primary-gradient"
+                disabled={connectorStatus === "checking"}
+              >
+                Connect Sheet
+              </button>
+              
+              {isCustomActive && (
+                <button
+                  type="button"
+                  className="btn-danger-badge"
+                  onClick={handleResetToDemo}
+                >
+                  Disconnect & Use Demo Sheet
+                </button>
+              )}
+            </div>
+          </form>
+
+          <hr className="drawer-divider" />
+
+          <section className="guide-section">
+            <h3>📖 How to share your Google Sheet</h3>
+            <ol className="sharing-steps">
+              <li>
+                Open your Google Sheet and click the blue <strong>Share</strong> button in the top right.
+              </li>
+              <li>
+                Under <em>General access</em>, change restriction to <strong>"Anyone with the link can view"</strong>.<br />
+                <small className="warning-text">⚠️ If set to Restricted, the dashboard won't be able to retrieve the data.</small>
+              </li>
+              <li>
+                Make sure the sheet contains columns titled exactly: <strong>Date</strong>, <strong>Expense</strong> (or <em>Item</em>), <strong>Amount</strong>, and <strong>Category</strong>.
+              </li>
+              <li>
+                Copy the browser link and paste it into the form above!
+              </li>
+            </ol>
+          </section>
+        </div>
+      </aside>
     </main>
   );
 }

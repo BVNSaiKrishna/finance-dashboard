@@ -957,3 +957,309 @@
   }
 }
 
+/* --- GOOGLE SHEETS CONNECTOR DRAWER STYLES --- */
+
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+@media (max-width: 760px) {
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+    gap: 12px;
+  }
+}
+
+.btn-connect-sheet {
+  min-height: 46px;
+  padding: 0 20px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.04);
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13.5px;
+  font-family: inherit;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.btn-connect-sheet:hover {
+  background: rgba(94, 234, 212, 0.08);
+  border-color: rgba(94, 234, 212, 0.5);
+  box-shadow: 0 0 16px rgba(94, 234, 212, 0.25);
+  transform: translateY(-1px);
+}
+
+.btn-connect-sheet.is-active {
+  background: rgba(134, 239, 172, 0.08);
+  border-color: rgba(134, 239, 172, 0.5);
+  color: #86efac;
+}
+
+.btn-connect-sheet.is-active:hover {
+  background: rgba(134, 239, 172, 0.14);
+  border-color: #86efac;
+  box-shadow: 0 0 20px rgba(134, 239, 172, 0.3);
+}
+
+/* Connector Drawer Sidebar Overlay */
+.connector-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 6, 8, 0.5);
+  backdrop-filter: blur(8px);
+  z-index: 999;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.connector-overlay.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Sliding Drawer Container */
+.connector-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: min(100vw, 480px);
+  background: linear-gradient(155deg, #0e111a 0%, #080a0e 100%);
+  border-left: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 
+    -20px 0 60px rgba(0, 0, 0, 0.6),
+    inset 0 0 30px rgba(94, 234, 212, 0.01);
+  backdrop-filter: blur(24px);
+  z-index: 1000;
+  transform: translateX(100%);
+  transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+  color: #f8fafc;
+}
+
+.connector-drawer.is-open {
+  transform: translateX(0);
+}
+
+.drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.drawer-header h2 {
+  margin: 0;
+  font-family: "Syne", sans-serif;
+  font-size: 20px;
+  font-weight: 800;
+  color: #ffffff;
+  background: linear-gradient(90deg, #ffffff, #a7adbb);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.btn-close-drawer {
+  background: transparent;
+  border: 0;
+  color: #818898;
+  font-size: 32px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px;
+  transition: all 0.2s ease;
+}
+
+.btn-close-drawer:hover {
+  color: #ffffff;
+  transform: scale(1.1);
+}
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.drawer-intro {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #a7adbb;
+}
+
+.connector-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Diagnostic Messages */
+.connector-diagnostic {
+  padding: 14px 16px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  margin-top: 4px;
+}
+
+.diagnostic-checking {
+  background: rgba(94, 234, 212, 0.08);
+  border: 1px solid rgba(94, 234, 212, 0.25);
+  color: #5eead4;
+}
+
+.spinner {
+  display: inline-block;
+  animation: spin 1.5s linear infinite;
+  margin-right: 6px;
+}
+
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.diagnostic-success {
+  background: rgba(134, 239, 172, 0.08);
+  border: 1px solid rgba(134, 239, 172, 0.25);
+  color: #86efac;
+}
+
+.diagnostic-error {
+  background: rgba(251, 113, 133, 0.08);
+  border: 1px solid rgba(251, 113, 133, 0.25);
+  color: #fb7185;
+}
+
+.diagnostic-error strong {
+  color: #ffffff;
+}
+
+.drawer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.btn-primary-gradient {
+  min-height: 48px;
+  border: none;
+  border-radius: 8px;
+  color: #0c0e15;
+  background: linear-gradient(135deg, #5eead4 0%, #a78bfa 100%);
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  font-family: inherit;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 4px 20px rgba(94, 234, 212, 0.2);
+}
+
+.btn-primary-gradient:hover:not(:disabled) {
+  background: linear-gradient(135deg, #86efac 0%, #7dd3fc 100%);
+  box-shadow: 0 8px 24px rgba(134, 239, 172, 0.35);
+  transform: translateY(-2px);
+}
+
+.btn-primary-gradient:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-danger-badge {
+  min-height: 42px;
+  background: rgba(251, 113, 133, 0.08);
+  border: 1px solid rgba(251, 113, 133, 0.25);
+  border-radius: 8px;
+  color: #fb7185;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-danger-badge:hover {
+  background: rgba(251, 113, 133, 0.15);
+  border-color: #fb7185;
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(251, 113, 133, 0.2);
+}
+
+.drawer-divider {
+  border: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.06);
+  margin: 12px 0;
+}
+
+/* Guide Section inside Drawer */
+.guide-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.guide-section h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #f8d66d;
+}
+
+.sharing-steps {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: #a7adbb;
+}
+
+.sharing-steps li {
+  padding-left: 4px;
+}
+
+.sharing-steps li strong {
+  color: #ffffff;
+}
+
+.warning-text {
+  display: inline-block;
+  margin-top: 4px;
+  color: #fb7185;
+  font-size: 11.5px;
+  font-weight: 500;
+}
+
