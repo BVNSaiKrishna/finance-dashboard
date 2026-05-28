@@ -215,6 +215,7 @@ export default function App() {
   const [sheetTabInput, setSheetTabInput] = useState(getStoredCustomSheetName);
   const [connectorStatus, setConnectorStatus] = useState("idle"); // idle, checking, success, error
   const [connectorError, setConnectorError] = useState("");
+  const [lastSynced, setLastSynced] = useState(null);
 
   // Upgrade Feature States
   const [theme, setTheme] = useState(getStoredTheme);
@@ -255,7 +256,7 @@ export default function App() {
       try {
         setStatus("loading");
         setError("");
-        
+
         const fetchUrl = isCustomActive && customSheetId.trim()
           ? `https://opensheet.elk.sh/${customSheetId.trim()}/${customSheetName.trim() || "Expense"}`
           : SHEET_URL;
@@ -275,6 +276,7 @@ export default function App() {
         if (!isMounted) return;
 
         setTransactions(data.map(normalizeTransaction).sort(sortByDateDesc));
+        setLastSynced(new Date());
         setStatus("ready");
       } catch (fetchError) {
         if (!isMounted) return;
@@ -409,7 +411,7 @@ export default function App() {
   const budgetRemaining = monthlyBudget - monthlyTotal;
 
   // --- UPGRADE: PREDICTIVE METRICS & SPENDING VELOCITY ---
-  const { projectedEOMSpent, dailyAllowanceRemaining, daysRemaining, daysElapsed, totalDaysInMonth } = useMemo(() => {
+  const { dailyAllowanceRemaining, daysRemaining } = useMemo(() => {
     const now = new Date();
     const currentYear = now.getFullYear();
     const currentMonth = now.getMonth() + 1;
@@ -425,93 +427,16 @@ export default function App() {
       elapsed = isCurrentMonth ? Math.min(now.getDate(), totalDays) : totalDays;
     }
 
-    const spentVelocity = elapsed > 0 ? monthlyTotal / elapsed : 0;
-    const projected = spentVelocity * totalDays;
     const remaining = totalDays - elapsed;
 
     const budgetLeft = Math.max(0, monthlyBudget - monthlyTotal);
     const dailyAllowance = remaining > 0 ? budgetLeft / remaining : 0;
 
     return {
-      projectedEOMSpent: projected,
       dailyAllowanceRemaining: dailyAllowance,
       daysRemaining: remaining,
-      daysElapsed: elapsed,
-      totalDaysInMonth: totalDays,
     };
   }, [activeMonth, monthlyTotal, monthlyBudget]);
-
-  // --- UPGRADE: SMART FINANCIAL INSIGHTS (AI INSIGHTS) ---
-  const insights = useMemo(() => {
-    const list = [];
-    if (!monthlyTransactions.length) return list;
-
-    // 1. Subscription detector (Identifies potential subscription services)
-    const suspectKeywords = [
-      "netflix", "spotify", "google", "youtube", "premium", "rent", "broadband",
-      "recharge", "sub", "membership", "cloud", "aws", "adobe", "apple", "microsoft", "github"
-    ];
-    const processedSubs = new Set();
-
-    monthlyTransactions.forEach((tx) => {
-      const lowerName = tx.name.toLowerCase();
-      const isSuspect = suspectKeywords.some(kw => lowerName.includes(kw));
-      if (isSuspect && !processedSubs.has(lowerName)) {
-        processedSubs.add(lowerName);
-        list.push({
-          type: "subscription",
-          title: "Potential Subscription Found",
-          description: `"${tx.name}" (${currency.format(tx.amount)}) matches recurring billing signatures.`,
-          icon: "📅"
-        });
-      }
-    });
-
-    // 2. Single spend spike (Any transaction consuming > 20% of monthly budget)
-    monthlyTransactions.forEach((tx) => {
-      if (monthlyBudget > 0 && tx.amount >= monthlyBudget * 0.2) {
-        list.push({
-          type: "spike",
-          title: "Single Spend Spike Alert",
-          description: `"${tx.name}" cost ${currency.format(tx.amount)}, consuming ${(tx.amount / monthlyBudget * 100).toFixed(0)}% of EOM capacity.`,
-          icon: "⚠️"
-        });
-      }
-    });
-
-    // 3. Positive Savings Trend
-    if (monthlyTotal < monthlyBudget * 0.5 && daysElapsed >= totalDaysInMonth * 0.5) {
-      list.push({
-        type: "vibe",
-        title: "Healthy Savings Track",
-        description: `Elapsed ${daysElapsed} days of the month but consumed only ${(monthlyTotal / monthlyBudget * 100).toFixed(0)}% of budget.`,
-        icon: "🎉"
-      });
-    }
-
-    // 4. Overspend Warning
-    if (monthlyTotal > monthlyBudget) {
-      list.push({
-        type: "spike",
-        title: "Budget Cap Overrun",
-        description: `Your active month spent total is ${currency.format(monthlyTotal - monthlyBudget)} over budget capacity!`,
-        icon: "🚨"
-      });
-    }
-
-    // 5. Monthly comparison trend
-    if (previousMonth && monthChangePercent !== 0) {
-      const isHigher = monthChange >= 0;
-      list.push({
-        type: isHigher ? "spike" : "vibe",
-        title: isHigher ? "Spending Up from Last Month" : "Savings Up from Last Month",
-        description: `You've spent ${currency.format(Math.abs(monthChange))} (${Math.abs(monthChangePercent).toFixed(0)}%) ${isHigher ? "more" : "less"} than last month.`,
-        icon: isHigher ? "📈" : "📉"
-      });
-    }
-
-    return list.slice(0, 3);
-  }, [monthlyTransactions, monthlyBudget, monthlyTotal, daysElapsed, totalDaysInMonth, previousMonth, monthChange, monthChangePercent]);
 
   const resetFilters = () => {
     setQuery("");
@@ -569,7 +494,7 @@ export default function App() {
       // Quick validation of the first item keys
       const sample = data[0];
       const keys = Object.keys(sample).map(k => k.toLowerCase());
-      
+
       const hasDate = keys.includes("date");
       const hasAmount = keys.includes("amount") || keys.includes("price") || keys.includes("cost");
       const hasExpense = keys.includes("expense") || keys.includes("item") || keys.includes("name") || keys.includes("title");
@@ -590,7 +515,7 @@ export default function App() {
       localStorage.setItem(CUSTOM_SHEET_ACTIVE_KEY, "true");
 
       setConnectorStatus("success");
-      
+
       // Auto-close drawer after a short delay
       setTimeout(() => {
         setIsConnectorOpen(false);
@@ -711,6 +636,22 @@ export default function App() {
             <p className="hero-copy">
               Live spending intelligence {isCustomActive ? "from your connected sheet" : "from your expense sheet"}.
             </p>
+            <button
+              className="connection-status-pill"
+              onClick={() => setIsConnectorOpen(true)}
+              title="Click to manage connection settings"
+              type="button"
+            >
+              <span className={`status-dot ${status === "loading" ? "syncing" : status === "error" ? "error" : isCustomActive ? "connected" : "demo"}`} />
+              <span className="status-label">
+                {isCustomActive ? `Connected: ${customSheetName}` : "Demo Mode"}
+              </span>
+              <span className="status-meta">
+                {status === "loading" && " • Syncing..."}
+                {status === "error" && " • Sync Error"}
+                {status === "ready" && lastSynced && ` • Synced ${lastSynced.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}
+              </span>
+            </button>
           </div>
 
           <div className="hero-actions">
@@ -808,17 +749,6 @@ export default function App() {
                 </div>
               </article>
 
-              <article className="insight-panel">
-                <span className="section-label">EOM Projection</span>
-                <strong className={`eom-projected-value ${projectedEOMSpent > monthlyBudget ? "pulsing-crimson" : ""}`}>
-                  {currency.format(projectedEOMSpent)}
-                </strong>
-                <small>
-                  {projectedEOMSpent > monthlyBudget
-                    ? "⚠️ Est. overspend risk"
-                    : "✅ Est. within budget cap"}
-                </small>
-              </article>
 
               <article className="insight-panel">
                 <span className="section-label">Highest day</span>
@@ -943,33 +873,6 @@ export default function App() {
               </article>
             </section>
 
-            {insights.length > 0 && (
-              <section className="metric-card financial-insights-panel" aria-label="Smart Financial Advisor Insights">
-                <div className="section-heading">
-                  <div>
-                    <span className="section-label">🧠 AI-Style Advisor</span>
-                    <h2>Financial Pulse Insights</h2>
-                  </div>
-                </div>
-
-                <div className="insights-list">
-                  {insights.map((insight, idx) => (
-                    <article className="insight-item-card" key={idx}>
-                      <div className={`insight-icon-box ${
-                        insight.type === "subscription" ? "icon-sub" :
-                        insight.type === "spike" ? "icon-spike" : "icon-vibe"
-                      }`}>
-                        {insight.icon}
-                      </div>
-                      <div>
-                        <h4>{insight.title}</h4>
-                        <p>{insight.description}</p>
-                      </div>
-                    </article>
-                  ))}
-                </div>
-              </section>
-            )}
 
             <section className="filter-panel" aria-label="Expense filters">
               <label>
@@ -1202,7 +1105,7 @@ export default function App() {
 
                             <div className="budget-row">
                               {editingCategory === category.name ? (
-                                <form 
+                                <form
                                   className="category-budget-form"
                                   onSubmit={(e) => {
                                     e.preventDefault();
@@ -1219,8 +1122,8 @@ export default function App() {
                                     autoFocus
                                   />
                                   <button type="submit" className="btn-save-budget">Save</button>
-                                  <button 
-                                    type="button" 
+                                  <button
+                                    type="button"
                                     className="btn-cancel-budget"
                                     onClick={() => {
                                       setEditingCategory(null);
@@ -1284,9 +1187,9 @@ export default function App() {
       </section>
 
       {/* Google Sheets Connector Drawer Overlay */}
-      <div 
-        className={`connector-overlay ${isConnectorOpen ? "is-open" : ""}`} 
-        onClick={() => setIsConnectorOpen(false)} 
+      <div
+        className={`connector-overlay ${isConnectorOpen ? "is-open" : ""}`}
+        onClick={() => setIsConnectorOpen(false)}
       />
       <aside className={`connector-drawer ${isConnectorOpen ? "is-open" : ""}`} aria-label="Sheet Connector">
         <div className="drawer-header">
@@ -1350,7 +1253,7 @@ export default function App() {
               >
                 Connect Sheet
               </button>
-              
+
               {isCustomActive && (
                 <button
                   type="button"
