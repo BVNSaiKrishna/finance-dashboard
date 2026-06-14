@@ -11,6 +11,7 @@ const LOCAL_TX_STORAGE_KEY = "finance-dashboard-local-transactions";
 const CUSTOM_SHEET_ID_KEY = "finance-dashboard-custom-sheet-id";
 const CUSTOM_SHEET_NAME_KEY = "finance-dashboard-custom-sheet-name";
 const CUSTOM_SHEET_ACTIVE_KEY = "finance-dashboard-custom-sheet-active";
+const CUSTOM_APPS_SCRIPT_URL_KEY = "finance-dashboard-apps-script-url";
 const CATEGORY_BUDGETS_KEY = "finance-dashboard-category-budgets";
 const THEME_KEY = "finance-dashboard-theme";
 
@@ -76,6 +77,7 @@ function normalizeTransaction(tx, index) {
   const rawExpense = findKey(["expense", "item", "name", "title"]);
   const rawAmount = findKey(["amount", "price", "cost"]);
   const rawCategory = findKey(["category", "type", "tag"]);
+  const rawPaymentType = findKey(["paymenttype", "payment type", "payment_type", "payment", "mode", "method"]);
 
   const date = parseDate(rawDate);
 
@@ -88,6 +90,7 @@ function normalizeTransaction(tx, index) {
     dayKey: date ? getDayKey(date) : "undated",
     name: rawExpense?.trim() || "Untitled expense",
     monthKey: date ? getMonthKey(date) : "undated",
+    paymentType: rawPaymentType?.trim() || "NA",
     raw: tx,
   };
 }
@@ -121,9 +124,9 @@ function getStoredLocalTransactions() {
 
 function getStoredCustomSheetId() {
   try {
-    return localStorage.getItem(CUSTOM_SHEET_ID_KEY) || "";
+    return localStorage.getItem(CUSTOM_SHEET_ID_KEY) || "10A8amXj7QMzCfByz3Craq5dTnqwabD-0eN2v7ppoIsc";
   } catch {
-    return "";
+    return "10A8amXj7QMzCfByz3Craq5dTnqwabD-0eN2v7ppoIsc";
   }
 }
 
@@ -135,11 +138,20 @@ function getStoredCustomSheetName() {
   }
 }
 
+function getStoredAppsScriptUrl() {
+  try {
+    return localStorage.getItem(CUSTOM_APPS_SCRIPT_URL_KEY) || "https://script.google.com/macros/s/AKfycbzcOkQpQ3mTBZkSRIe42BvhS5WjM691o4jAwGKZM69BWc3y0EulqcGokO94O9ndDHUhYQ/exec";
+  } catch {
+    return "https://script.google.com/macros/s/AKfycbzcOkQpQ3mTBZkSRIe42BvhS5WjM691o4jAwGKZM69BWc3y0EulqcGokO94O9ndDHUhYQ/exec";
+  }
+}
+
 function getStoredCustomSheetActive() {
   try {
-    return localStorage.getItem(CUSTOM_SHEET_ACTIVE_KEY) === "true";
+    const val = localStorage.getItem(CUSTOM_SHEET_ACTIVE_KEY);
+    return val === null ? true : val === "true";
   } catch {
-    return false;
+    return true;
   }
 }
 
@@ -457,16 +469,21 @@ export default function App() {
   // Custom Sheet Connection States
   const [customSheetId, setCustomSheetId] = useState(getStoredCustomSheetId);
   const [customSheetName, setCustomSheetName] = useState(getStoredCustomSheetName);
+  const [customAppsScriptUrl, setCustomAppsScriptUrl] = useState(getStoredAppsScriptUrl);
   const [isCustomActive, setIsCustomActive] = useState(getStoredCustomSheetActive);
   const [isConnectorOpen, setIsConnectorOpen] = useState(false);
   const [sheetUrlInput, setSheetUrlInput] = useState(() => {
     const storedId = getStoredCustomSheetId();
-    return storedId ? `https://docs.google.com/spreadsheets/d/${storedId}/edit` : "";
+    return storedId ? `https://docs.google.com/spreadsheets/d/${storedId}/edit` : "https://docs.google.com/spreadsheets/d/10A8amXj7QMzCfByz3Craq5dTnqwabD-0eN2v7ppoIsc/edit";
   });
   const [sheetTabInput, setSheetTabInput] = useState(getStoredCustomSheetName);
+  const [appsScriptUrlInput, setAppsScriptUrlInput] = useState(getStoredAppsScriptUrl);
   const [connectorStatus, setConnectorStatus] = useState("idle"); // idle, checking, success, error
   const [connectorError, setConnectorError] = useState("");
   const [lastSynced, setLastSynced] = useState(null);
+
+  const [refetchTrigger, setRefetchTrigger] = useState(0);
+  const triggerRefetch = () => setRefetchTrigger(prev => prev + 1);
 
   // Upgrade Feature States
   const [theme, setTheme] = useState(() => {
@@ -488,6 +505,9 @@ export default function App() {
   const [newExpenseDate, setNewExpenseDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [customCategory, setCustomCategory] = useState("");
   const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [newExpensePaymentType, setNewExpensePaymentType] = useState("UPI");
+  const [isCustomPaymentType, setIsCustomPaymentType] = useState(false);
+  const [customPaymentType, setCustomPaymentType] = useState("");
   const [switching, setSwitching] = useState(false);
 
   const T = THEMES[theme];
@@ -551,7 +571,7 @@ export default function App() {
     return () => {
       isMounted = false;
     };
-  }, [customSheetId, customSheetName, isCustomActive]);
+  }, [customSheetId, customSheetName, isCustomActive, refetchTrigger]);
 
   const combinedTransactions = useMemo(() => {
     const normalizedLocal = localTransactions.map((tx, index) =>
@@ -592,7 +612,7 @@ export default function App() {
         selectedCategory === "all" || tx.category === selectedCategory;
       const matchesQuery =
         !normalizedQuery ||
-        `${tx.name} ${tx.category} ${tx.dateLabel}`.toLowerCase().includes(normalizedQuery);
+        `${tx.name} ${tx.category} ${tx.dateLabel} ${tx.paymentType || "NA"}`.toLowerCase().includes(normalizedQuery);
 
       return matchesCategory && matchesQuery;
     });
@@ -755,10 +775,12 @@ export default function App() {
 
       setCustomSheetId(extractedId);
       setCustomSheetName(tabName);
+      setCustomAppsScriptUrl(appsScriptUrlInput.trim());
       setIsCustomActive(true);
 
       localStorage.setItem(CUSTOM_SHEET_ID_KEY, extractedId);
       localStorage.setItem(CUSTOM_SHEET_NAME_KEY, tabName);
+      localStorage.setItem(CUSTOM_APPS_SCRIPT_URL_KEY, appsScriptUrlInput.trim());
       localStorage.setItem(CUSTOM_SHEET_ACTIVE_KEY, "true");
 
       setConnectorStatus("success");
@@ -780,6 +802,9 @@ export default function App() {
     setConnectorError("");
     setSheetUrlInput("");
     setSheetTabInput("Expense");
+    setAppsScriptUrlInput("");
+    setCustomAppsScriptUrl("");
+    localStorage.removeItem(CUSTOM_APPS_SCRIPT_URL_KEY);
   };
 
   const handleSaveCategoryBudget = (categoryName) => {
@@ -792,7 +817,9 @@ export default function App() {
     setEditingBudgetVal("");
   };
 
-  const handleAddExpense = (e) => {
+  const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
+
+  const handleAddExpense = async (e) => {
     e.preventDefault();
     if (!newExpenseName.trim() || !newExpenseAmount) return;
 
@@ -805,20 +832,88 @@ export default function App() {
     const parts = newExpenseDate.split("-");
     const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
 
+    const expenseText = newExpenseName.trim();
+    const amountVal = Number(newExpenseAmount);
+
+    const finalPaymentType = isCustomPaymentType ? customPaymentType.trim() : newExpensePaymentType;
+    if (!finalPaymentType) {
+      alert("Please select or enter a payment type.");
+      return;
+    }
+
     const newTx = {
       id: `local-${Date.now()}`,
-      Expense: newExpenseName.trim(),
-      Amount: String(newExpenseAmount),
+      Expense: expenseText,
+      Amount: String(amountVal),
       Category: finalCategory,
       Date: formattedDate,
+      PaymentType: finalPaymentType,
     };
 
-    setLocalTransactions((prev) => [newTx, ...prev]);
+    if (isCustomActive && customAppsScriptUrl.trim()) {
+      try {
+        setIsSubmittingExpense(true);
+        const response = await fetch(customAppsScriptUrl.trim(), {
+          method: "POST",
+          mode: "cors",
+          headers: {
+            "Content-Type": "text/plain"
+          },
+          body: JSON.stringify({
+            date: formattedDate,
+            expense: expenseText,
+            amount: amountVal,
+            category: finalCategory,
+            paymentType: finalPaymentType
+          })
+        });
 
-    setNewExpenseName("");
-    setNewExpenseAmount("");
-    setCustomCategory("");
-    setIsCustomCategory(false);
+        let result = null;
+        try {
+          result = await response.json();
+        } catch {
+          // If response parsing fails, it's fine as long as standard redirects are followed
+        }
+
+        if (response.ok || (result && result.status === "success")) {
+          alert("\u{1F4A5} Strike logged to Google Sheet!");
+          
+          setNewExpenseName("");
+          setNewExpenseAmount("");
+          setCustomCategory("");
+          setIsCustomCategory(false);
+          setCustomPaymentType("");
+          setIsCustomPaymentType(false);
+          triggerRefetch();
+        } else {
+          throw new Error("Invalid Apps Script response");
+        }
+      } catch (postError) {
+        console.error("Sync Error:", postError);
+        const proceedLocal = window.confirm(
+          "\u{274C} Failed to sync to Google Sheet. Web App URL might be incorrect or access is restricted.\n\nWould you like to save it locally only for now?"
+        );
+        if (proceedLocal) {
+          setLocalTransactions((prev) => [newTx, ...prev]);
+          setNewExpenseName("");
+          setNewExpenseAmount("");
+          setCustomCategory("");
+          setIsCustomCategory(false);
+          setCustomPaymentType("");
+          setIsCustomPaymentType(false);
+        }
+      } finally {
+        setIsSubmittingExpense(false);
+      }
+    } else {
+      setLocalTransactions((prev) => [newTx, ...prev]);
+      setNewExpenseName("");
+      setNewExpenseAmount("");
+      setCustomCategory("");
+      setIsCustomCategory(false);
+      setCustomPaymentType("");
+      setIsCustomPaymentType(false);
+    }
   };
 
   const clearLocalTransactions = () => {
@@ -828,12 +923,13 @@ export default function App() {
   };
 
   const exportToCSV = () => {
-    const headers = ["Date", "Expense", "Amount", "Category"];
+    const headers = ["Date", "Expense", "Amount", "Category", "PaymentType"];
     const rows = visibleTransactions.map((tx) => [
       tx.dateLabel,
       `"${tx.name.replace(/"/g, '""')}"`,
       tx.amount,
       `"${tx.category.replace(/"/g, '""')}"`,
+      `"${(tx.paymentType || "NA").replace(/"/g, '""')}"`,
     ]);
     const csvContent =
       "data:text/csv;charset=utf-8," +
@@ -1915,7 +2011,9 @@ export default function App() {
                                       fontFamily:"'Inter', sans-serif" }}>{tx.name}</div>
                                     <div style={{ fontSize:"10px", color:T.muted,
                                       fontFamily:"'Inter', sans-serif", marginTop:"1px",
-                                      transition:"color .5s" }}>{tx.dateLabel}</div>
+                                      transition:"color .5s" }}>
+                                      {tx.dateLabel} <span style={{ color: `${cc}55` }}>•</span> {tx.paymentType || "NA"}
+                                    </div>
                                   </div>
                                 </div>
                                 <span style={{ fontSize:"13px", fontWeight:600,
@@ -2158,6 +2256,7 @@ export default function App() {
                         <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>STRIKE NAME</span>
                         <input
                           required
+                          disabled={isSubmittingExpense}
                           placeholder="Starbucks Coffee, etc."
                           value={newExpenseName}
                           onChange={(e) => setNewExpenseName(e.target.value)}
@@ -2168,7 +2267,8 @@ export default function App() {
                             borderRadius: "8px",
                             padding: "8px 10px",
                             fontSize: "12px",
-                            outline: "none"
+                            outline: "none",
+                            opacity: isSubmittingExpense ? 0.6 : 1
                           }}
                         />
                       </label>
@@ -2179,6 +2279,7 @@ export default function App() {
                           required
                           type="number"
                           min="1"
+                          disabled={isSubmittingExpense}
                           placeholder="e.g. 250"
                           value={newExpenseAmount}
                           onChange={(e) => setNewExpenseAmount(e.target.value)}
@@ -2189,19 +2290,21 @@ export default function App() {
                             borderRadius: "8px",
                             padding: "8px 10px",
                             fontSize: "12px",
-                            outline: "none"
+                            outline: "none",
+                            opacity: isSubmittingExpense ? 0.6 : 1
                           }}
                         />
                       </label>
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: "10px" }}>
                       <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                         <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>BREATHING FORM</span>
                         {isCustomCategory ? (
                           <div style={{ display: "flex", gap: "4px" }}>
                             <input
                               required
+                              disabled={isSubmittingExpense}
                               placeholder="New category name..."
                               value={customCategory}
                               onChange={(e) => setCustomCategory(e.target.value)}
@@ -2213,11 +2316,13 @@ export default function App() {
                                 borderRadius: "8px",
                                 padding: "8px 10px",
                                 fontSize: "11px",
-                                outline: "none"
+                                outline: "none",
+                                opacity: isSubmittingExpense ? 0.6 : 1
                               }}
                             />
                             <button
                               onClick={() => setIsCustomCategory(false)}
+                              disabled={isSubmittingExpense}
                               type="button"
                               style={{
                                 background: "transparent",
@@ -2226,8 +2331,9 @@ export default function App() {
                                 borderRadius: "8px",
                                 padding: "0 8px",
                                 fontSize: "9px",
-                                cursor: "pointer",
-                                fontFamily: "'Inter', sans-serif"
+                                cursor: isSubmittingExpense ? "not-allowed" : "pointer",
+                                fontFamily: "'Inter', sans-serif",
+                                opacity: isSubmittingExpense ? 0.6 : 1
                               }}
                             >
                               X
@@ -2236,6 +2342,7 @@ export default function App() {
                         ) : (
                           <select
                             value={newExpenseCategory}
+                            disabled={isSubmittingExpense}
                             onChange={(e) => {
                               if (e.target.value === "__custom__") {
                                 setIsCustomCategory(true);
@@ -2251,7 +2358,8 @@ export default function App() {
                               padding: "8px 10px",
                               fontSize: "11px",
                               outline: "none",
-                              cursor: "pointer"
+                              cursor: isSubmittingExpense ? "not-allowed" : "pointer",
+                              opacity: isSubmittingExpense ? 0.6 : 1
                             }}
                           >
                             <option value="" style={{ background: T.raised }}>SELECT FORM</option>
@@ -2264,12 +2372,90 @@ export default function App() {
                           </select>
                         )}
                       </label>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                      <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>PAYMENT TYPE</span>
+                        {isCustomPaymentType ? (
+                          <div style={{ display: "flex", gap: "4px" }}>
+                            <input
+                              required
+                              disabled={isSubmittingExpense}
+                              placeholder="e.g. Gift Card, Amazon Pay"
+                              value={customPaymentType}
+                              onChange={(e) => setCustomPaymentType(e.target.value)}
+                              style={{
+                                flex: 1,
+                                background: T.raised,
+                                color: "#fff",
+                                border: `1px solid ${T.primary}22`,
+                                borderRadius: "8px",
+                                padding: "8px 10px",
+                                fontSize: "11px",
+                                outline: "none",
+                                opacity: isSubmittingExpense ? 0.6 : 1
+                              }}
+                            />
+                            <button
+                              onClick={() => setIsCustomPaymentType(false)}
+                              disabled={isSubmittingExpense}
+                              type="button"
+                              style={{
+                                background: "transparent",
+                                border: `1px solid ${T.primary}44`,
+                                color: T.primary,
+                                borderRadius: "8px",
+                                padding: "0 8px",
+                                fontSize: "9px",
+                                cursor: isSubmittingExpense ? "not-allowed" : "pointer",
+                                fontFamily: "'Inter', sans-serif",
+                                opacity: isSubmittingExpense ? 0.6 : 1
+                              }}
+                            >
+                              X
+                            </button>
+                          </div>
+                        ) : (
+                          <select
+                            value={newExpensePaymentType}
+                            disabled={isSubmittingExpense}
+                            onChange={(e) => {
+                              if (e.target.value === "__custom__") {
+                                setIsCustomPaymentType(true);
+                              } else {
+                                setNewExpensePaymentType(e.target.value);
+                              }
+                            }}
+                            style={{
+                              background: T.raised,
+                              color: "#fff",
+                              border: `1px solid ${T.primary}22`,
+                              borderRadius: "8px",
+                              padding: "8px 10px",
+                              fontSize: "11px",
+                              outline: "none",
+                              cursor: isSubmittingExpense ? "not-allowed" : "pointer",
+                              opacity: isSubmittingExpense ? 0.6 : 1
+                            }}
+                          >
+                            <option value="UPI" style={{ background: T.raised }}>UPI (🏦)</option>
+                            <option value="Credit Card" style={{ background: T.raised }}>CREDIT CARD (💳)</option>
+                            <option value="Debit Card" style={{ background: T.raised }}>DEBIT CARD (📇)</option>
+                            <option value="Cash" style={{ background: T.raised }}>CASH (💵)</option>
+                            <option value="Net Banking" style={{ background: T.raised }}>NET BANKING (🌐)</option>
+                            <option value="NA" style={{ background: T.raised }}>NA (➖)</option>
+                            <option value="__custom__" style={{ background: T.raised }}>✨ ADD OTHER METHOD...</option>
+                          </select>
+                        )}
+                      </label>
 
                       <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
                         <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>DATE OF STRIKE</span>
                         <input
                           type="date"
                           required
+                          disabled={isSubmittingExpense}
                           value={newExpenseDate}
                           onChange={(e) => setNewExpenseDate(e.target.value)}
                           style={{
@@ -2279,7 +2465,8 @@ export default function App() {
                             borderRadius: "8px",
                             padding: "7px 10px",
                             fontSize: "12px",
-                            outline: "none"
+                            outline: "none",
+                            opacity: isSubmittingExpense ? 0.6 : 1
                           }}
                         />
                       </label>
@@ -2287,6 +2474,7 @@ export default function App() {
 
                     <button
                       type="submit"
+                      disabled={isSubmittingExpense}
                       style={{
                         background: T.switchBg,
                         color: T.switchText,
@@ -2297,14 +2485,21 @@ export default function App() {
                         fontSize: "11px",
                         fontFamily: "'Inter', sans-serif",
                         letterSpacing: "1px",
-                        cursor: "pointer",
+                        cursor: isSubmittingExpense ? "not-allowed" : "pointer",
                         transition: "all 0.3s",
-                        boxShadow: `0 0 10px ${T.primary}44`
+                        boxShadow: `0 0 10px ${T.primary}44`,
+                        opacity: isSubmittingExpense ? 0.7 : 1
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.filter = "brightness(1.1)"}
+                      onMouseEnter={(e) => { if (!isSubmittingExpense) e.currentTarget.style.filter = "brightness(1.1)"; }}
                       onMouseLeave={(e) => e.currentTarget.style.filter = "none"}
                     >
-                      ⚡ EXECUTE SIMULATED STRIKE
+                      {isSubmittingExpense ? (
+                        "🌀 EXECUTING STRIKE (SYNCING)..."
+                      ) : isCustomActive && customAppsScriptUrl.trim() ? (
+                        "⚡ EXECUTE STRIKE (SYNC TO SHEET)"
+                      ) : (
+                        "⚡ EXECUTE SIMULATED STRIKE"
+                      )}
                     </button>
                   </form>
                 </div>
@@ -2445,6 +2640,25 @@ export default function App() {
               />
             </label>
 
+            <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>APPS SCRIPT WEB APP URL (FOR ADDING DATA)</span>
+              <input
+                type="url"
+                placeholder="https://script.google.com/macros/s/.../exec"
+                value={appsScriptUrlInput}
+                onChange={(e) => setAppsScriptUrlInput(e.target.value)}
+                style={{
+                  background: T.raised,
+                  color: "#fff",
+                  border: `1px solid ${T.primary}22`,
+                  borderRadius: "8px",
+                  padding: "10px",
+                  fontSize: "12px",
+                  outline: "none"
+                }}
+              />
+            </label>
+
             {connectorStatus === "checking" && (
               <div style={{ padding: "10px", background: `${T.secondary}11`, border: `1px solid ${T.secondary}44`, borderRadius: "8px", color: T.secondary, fontSize: "11px", display: "flex", alignItems: "center", gap: "6px" }}>
                 <span style={{ animation: "pulsePrimary 1.5s infinite", display: "inline-block" }}>🌀</span> Validating connection to Google Sheet...
@@ -2511,13 +2725,16 @@ export default function App() {
 
           <section style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             <h3 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: T.primary, fontSize: "13px", margin: "0 0 4px" }}>
-              📖 sharing settings
+              📖 sharing & sync settings
             </h3>
             <ol style={{ margin: 0, paddingLeft: "16px", color: "#d0cce8", fontSize: "11px", display: "flex", flexDirection: "column", gap: "8px", lineHeight: 1.4 }}>
               <li>Open your Google Sheet and click the blue <strong>Share</strong> button in the top right.</li>
               <li>Under General access, change restriction to <strong>"Anyone with the link can view"</strong>.</li>
-              <li>Make sure the sheet contains columns titled exactly: <strong>Date</strong>, <strong>Expense</strong> (or Item), <strong>Amount</strong>, and <strong>Category</strong>.</li>
-              <li>Copy the browser link and paste it into the form above!</li>
+              <li>Make sure the sheet has columns titled exactly: <strong>Date</strong>, <strong>Expense</strong>, <strong>Amount</strong>, and <strong>Category</strong>.</li>
+              <li>To write data from the app, open your Sheet ➔ click <strong>Extensions</strong> ➔ <strong>Apps Script</strong>.</li>
+              <li>Paste your `doPost` Apps Script code, and click <strong>Deploy</strong> ➔ <strong>New deployment</strong>.</li>
+              <li>Choose <strong>Web app</strong>. Execute as: <strong>Me</strong>, and Who has access: <strong>Anyone</strong>.</li>
+              <li>Copy the Web App URL and paste it in the Web App field above!</li>
             </ol>
           </section>
         </div>
