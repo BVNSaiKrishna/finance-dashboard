@@ -64,7 +64,7 @@
     radial-gradient(circle at 18% 0%, var(--bg-color-1), transparent 28%),
     radial-gradient(circle at 86% 12%, var(--bg-color-2), transparent 26%),
     var(--bg-gradient);
-  font-family: "DM Mono", ui-monospace, monospace;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   transition: background var(--transition-speed), color var(--transition-speed);
 }
 
@@ -147,7 +147,7 @@
   max-width: 760px;
   margin: 0;
   color: var(--text-white);
-  font-family: "Syne", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: clamp(42px, 8vw, 72px);
   font-weight: 800;
   line-height: 0.95;
@@ -230,10 +230,23 @@
 .filter-panel,
 .budget-editor {
   border: 1px solid var(--card-border);
-  border-radius: 8px;
+  border-radius: 14px;
   background: var(--card-bg);
   box-shadow: var(--card-shadow);
-  transition: all var(--transition-speed) ease;
+  transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.metric-card:hover,
+.category-card:hover,
+.insight-panel:hover,
+.chart-panel:hover,
+.filter-panel:hover,
+.budget-editor:hover {
+  transform: translateY(-3px);
+  border-color: var(--accent-color);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3), 0 0 16px rgba(94, 234, 212, 0.12);
 }
 
 .metric-card,
@@ -248,7 +261,7 @@
 .metric-card strong,
 .insight-panel strong {
   color: var(--text-white);
-  font-family: "Syne", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: clamp(30px, 4vw, 42px);
   line-height: 1;
 }
@@ -295,7 +308,7 @@
 .section-heading h2 {
   margin: 6px 0 0;
   color: var(--text-white);
-  font-family: "Syne", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 24px;
   line-height: 1.05;
 }
@@ -334,7 +347,7 @@
 
 .donut-chart span {
   color: var(--text-white);
-  font-family: "Syne", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 34px;
   font-weight: 800;
 }
@@ -547,7 +560,7 @@
 .category-title-block strong {
   overflow: hidden;
   color: var(--text-white);
-  font-family: "Syne", system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 25px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -1188,7 +1201,7 @@
 
 .drawer-header h2 {
   margin: 0;
-  font-family: "Syne", sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   font-size: 20px;
   font-weight: 800;
   color: #ffffff;

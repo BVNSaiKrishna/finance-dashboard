@@ -1,9 +1,112 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#090a0f"/>
-  <path fill="#f8d66d" d="M148 336h216v38H148z"/>
-  <path fill="#5eead4" d="M176 276h48v98h-48z"/>
-  <path fill="#a78bfa" d="M232 218h48v156h-48z"/>
-  <path fill="#fb7185" d="M288 160h48v214h-48z"/>
-  <path fill="none" stroke="#f8fafc" stroke-linecap="round" stroke-linejoin="round" stroke-width="26" d="M144 232c46 6 76-10 101-48 18-27 39-38 63-33 20 4 36 17 60 43"/>
-  <circle cx="148" cy="336" r="12" fill="#f8d66d"/>
+  <defs>
+    <!-- Background Gradient -->
+    <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0a0c14" />
+      <stop offset="50%" stop-color="#06070a" />
+      <stop offset="100%" stop-color="#020305" />
+    </linearGradient>
+
+    <!-- Katana Blade Edge Gradient -->
+    <linearGradient id="blade-edge" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="30%" stop-color="#e2e8f0" />
+      <stop offset="100%" stop-color="#94a3b8" />
+    </linearGradient>
+
+    <!-- Katana Blade Spine Gradient -->
+    <linearGradient id="blade-spine" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#475569" />
+      <stop offset="70%" stop-color="#1e293b" />
+      <stop offset="100%" stop-color="#0f172a" />
+    </linearGradient>
+
+    <!-- Thunder / Lightning Gradient -->
+    <linearGradient id="thunder-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fffbeb" />
+      <stop offset="40%" stop-color="#f8d66d" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+
+    <!-- Water Swirl Gradient -->
+    <linearGradient id="water-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#00f2fe" />
+      <stop offset="50%" stop-color="#4facfe" />
+      <stop offset="100%" stop-color="#0000ff" />
+    </linearGradient>
+
+    <!-- Border Gradient -->
+    <linearGradient id="border-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8d66d" stop-opacity="0.3" />
+      <stop offset="100%" stop-color="#00f2fe" stop-opacity="0.3" />
+    </linearGradient>
+
+    <!-- Glow Filters -->
+    <filter id="glow-thunder" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="14" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+
+    <filter id="glow-water" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="14" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background squircle -->
+  <rect width="512" height="512" rx="128" fill="url(#bg-grad)" />
+  
+  <!-- Outer border outline -->
+  <rect x="12" y="12" width="488" height="488" rx="116" fill="none" stroke="url(#border-grad)" stroke-width="4" />
+
+  <!-- 1. Background Kanji (滅 - Metsu / Destroy) -->
+  <text x="256" y="278" font-family="'Noto Serif JP', 'Yu Mincho', serif" font-size="280" font-weight="900" fill="#fb7185" opacity="0.07" text-anchor="middle" dominant-baseline="middle">滅</text>
+
+  <!-- 2. Water Breathing Waves (Tanjiro Theme) - Bottom Left -->
+  <g filter="url(#glow-water)">
+    <path d="M 60,320 C 120,320 120,440 220,440 C 320,440 320,380 380,380" 
+          fill="none" stroke="url(#water-grad)" stroke-width="24" stroke-linecap="round" opacity="0.8" />
+    <path d="M 90,370 C 130,370 150,420 200,420" 
+          fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" opacity="0.6" />
+  </g>
+
+  <!-- 3. Thunder Breathing Lightning (Zenitsu Theme) - Top Right -->
+  <g filter="url(#glow-thunder)">
+    <!-- Main Bolt -->
+    <path d="M 400,120 L 310,210 L 350,210 L 260,300 L 290,300 L 210,380" 
+          fill="none" stroke="url(#thunder-grad)" stroke-width="20" stroke-linecap="round" stroke-linejoin="round" />
+    <!-- White core -->
+    <path d="M 395,125 L 310,210 L 350,210 L 260,300 L 290,300 L 215,375" 
+          fill="none" stroke="#ffffff" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" opacity="0.9" />
+  </g>
+
+  <!-- 4. Diagonally Slicing Katana Blade -->
+  <!-- Blade Spine (Dark side) -->
+  <path d="M 414,94 L 94,414 L 90,418 L 88,414 L 408,90 Z" fill="url(#blade-spine)" />
+  <!-- Blade Edge (Shiny side) -->
+  <path d="M 414,94 L 94,414 L 98,422 L 422,98 Z" fill="url(#blade-edge)" />
+
+  <!-- Red Flame Tsuba (Katana Guard detail - Tanjiro's wagon-wheel design style) -->
+  <g transform="translate(256, 256)">
+    <!-- Outer gold ring -->
+    <circle cx="0" cy="0" r="42" fill="none" stroke="#d97706" stroke-width="5" filter="url(#glow-thunder)" />
+    <!-- Inner red flame spokes -->
+    <circle cx="0" cy="0" r="36" fill="#111" stroke="#ef4444" stroke-width="6" />
+    <!-- Center brass hub -->
+    <rect x="-8" y="-12" width="16" height="24" rx="3" fill="#d97706" />
+    <line x1="-8" y1="0" x2="8" y2="0" stroke="#111" stroke-width="2" />
+  </g>
+
+  <!-- Overlay sparkles / electric arcs -->
+  <path d="M 320,130 Q 300,150 330,170" fill="none" stroke="#f8d66d" stroke-width="3" filter="url(#glow-thunder)" opacity="0.8" />
+  <path d="M 150,380 Q 180,360 160,340" fill="none" stroke="#00f2fe" stroke-width="3" filter="url(#glow-water)" opacity="0.8" />
+
+  <!-- Dynamic blade shine highlight -->
+  <path d="M 370,138 L 340,168" fill="none" stroke="#ffffff" stroke-width="4" stroke-linecap="round" opacity="0.75" />
 </svg>

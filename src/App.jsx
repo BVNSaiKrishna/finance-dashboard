@@ -409,7 +409,7 @@ const ThemeSwitcher = ({ current, onChange }) => {
       borderRadius:"40px", padding:"4px", boxShadow:`0 0 20px ${cur.primary}22` }}>
       <div style={{ padding:"7px 14px", borderRadius:"36px",
         background:cur.switchBg, color:cur.switchText,
-        fontFamily:"'Share Tech Mono',monospace", fontSize:"10px",
+        fontFamily:"'Inter', sans-serif", fontSize:"10px",
         fontWeight:700, letterSpacing:"1.5px",
         boxShadow:`0 0 12px ${cur.primary}55`,
         display:"flex", alignItems:"center", gap:"6px" }}>
@@ -422,7 +422,7 @@ const ThemeSwitcher = ({ current, onChange }) => {
         className="sw-other"
         style={{ padding:"7px 14px", borderRadius:"36px",
           background:"transparent", color:other.primary,
-          fontFamily:"'Share Tech Mono',monospace", fontSize:"10px",
+          fontFamily:"'Inter', sans-serif", fontSize:"10px",
           fontWeight:600, letterSpacing:"1.5px",
           border:`1px solid ${other.primary}44`,
           cursor:"pointer", transition:"all .2s",
@@ -440,6 +440,10 @@ const ThemeSwitcher = ({ current, onChange }) => {
    MAIN APPLICATION
 ═══════════════════════════════════════ */
 export default function App() {
+  const base = import.meta.env.BASE_URL || "/";
+  const zenitsuBg = `${base}zenitsu-bg.png`;
+  const tanjiroBg = `${base}tanjiro-bg.png`;
+
   const [transactions, setTransactions] = useState([]);
   const [localTransactions, setLocalTransactions] = useState(getStoredLocalTransactions);
   const [expanded, setExpanded] = useState({});
@@ -867,7 +871,7 @@ export default function App() {
   return (
     <>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Noto+Serif+JP:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700;900&family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
         *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 
         @keyframes slideIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
@@ -920,7 +924,7 @@ export default function App() {
         "--sw-other-bg": T.primary,
         minHeight:"100vh", background:T.bg,
         display:"flex", justifyContent:"center",
-        fontFamily:"'Rajdhani',sans-serif",
+        fontFamily:"'Plus Jakarta Sans', sans-serif",
         position:"relative", overflowX:"hidden", overflowY:"auto",
         transition:"background .5s ease",
         opacity: switching ? 0 : 1,
@@ -1038,7 +1042,7 @@ export default function App() {
                 alignItems: "center",
                 gap: "8px",
                 color: "#d0cce8",
-                fontFamily: "'Share Tech Mono',monospace",
+                fontFamily: "'Inter', sans-serif",
                 fontSize: "10px",
                 letterSpacing: "1px",
                 transition: "all 0.3s ease",
@@ -1086,7 +1090,7 @@ export default function App() {
                 borderRadius: "12px",
                 padding: "8px 16px",
                 cursor: "pointer",
-                fontFamily: "'Share Tech Mono',monospace",
+                fontFamily: "'Inter', sans-serif",
                 fontSize: "10px",
                 fontWeight: 700,
                 letterSpacing: "1px",
@@ -1124,7 +1128,7 @@ export default function App() {
                   ? <Bolt size={17} color="#0a0a14"/>
                   : <Droplet size={16} color="#fff" opacity={1}/>}
               </div>
-              <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:"9px",
+              <span style={{ fontFamily:"'Inter', sans-serif", fontSize:"9px",
                 letterSpacing:"2.5px", color:T.primary,
                 padding:"3px 12px", border:`1px solid ${T.primary}44`,
                 borderRadius:"20px", background:`${T.primary}10`,
@@ -1139,76 +1143,91 @@ export default function App() {
             </div>
 
             {/* ── HERO WEAPON PANEL ── */}
-            <div style={{ position:"relative", background:T.panel,
+            <div style={{ position:"relative", 
+              background: T.panel,
               border:`1px solid ${T.primary}22`, borderRadius:"16px",
-              padding:"22px 18px 18px", marginBottom:"16px",
-              overflow:"hidden", transition:"background .5s, border-color .5s" }}>
+              padding:"24px 20px", marginBottom:"16px",
+              overflow:"hidden", transition:"all .5s ease" }}>
+
+              {/* Wallpaper Background Div (Mirrored horizontally for perfect layout framing) */}
+              <div style={{
+                position: "absolute",
+                inset: 0,
+                backgroundImage: theme === "zenitsu" ? `url(${zenitsuBg})` : `url(${tanjiroBg})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center 28%",
+                transform: "scaleX(-1)", // Mirror horizontally so character face is on the right side
+                zIndex: 0,
+                transition: "background-image .5s ease"
+              }} />
+
+              {/* Glassmorphic Gradient Overlay (Darker on the left for text contrast, clear on the right for face visibility) */}
+              <div style={{
+                position: "absolute",
+                inset: 0,
+                background: `linear-gradient(90deg, rgba(10, 12, 22, 0.94) 0%, rgba(10, 12, 22, 0.7) 55%, rgba(10, 12, 22, 0) 100%)`,
+                zIndex: 1
+              }} />
 
               {/* Top glow line */}
               <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
                 background:`linear-gradient(90deg,transparent,${T.primary},transparent)`,
-                transition:"background .5s" }}/>
+                zIndex: 2, transition:"background .5s" }}/>
 
-              {/* Haori pattern bg */}
+              {/* Haori pattern bg overlay */}
               <div style={{ position:"absolute", inset:0,
                 background:`repeating-linear-gradient(${T.haoriAngle},${T.primary}07 0,${T.primary}07 16px,transparent 16px,transparent 32px)`,
-                transition:"background .5s" }}/>
+                zIndex: 2, transition:"background .5s" }}/>
 
-              {/* Flanking kunai */}
-              <div style={{ position:"absolute", left:"8px", top:"50%",
-                transform:"translateY(-50%) rotate(90deg)",
-                animation:"floatY 3s ease-in-out infinite" }}>
-                <Kunai color={T.primary} size={26} rotate={0}/>
-              </div>
-              <div style={{ position:"absolute", right:"8px", top:"50%",
-                transform:"translateY(-50%) rotate(-90deg)",
-                animation:"floatY 3.5s .4s ease-in-out infinite" }}>
-                <Kunai color={T.secondary} size={26} rotate={0}/>
-              </div>
-
-              {/* Centre */}
-              <div style={{ textAlign:"center", position:"relative", zIndex:1, padding:"0 44px" }}>
-                <p style={{ margin:"0 0 8px", fontFamily:"'Noto Serif JP',serif",
-                  fontSize:"11px", color:`${T.primary}66`, letterSpacing:"5px",
-                  transition:"color .5s" }}>
+              {/* Left-Aligned Header Content */}
+              <div style={{ textAlign: "left", position: "relative", zIndex: 3, padding: "0 10px" }}>
+                <p style={{ margin: "0 0 6px", fontFamily: "'Noto Serif JP',serif",
+                  fontSize: "11px", color: `${T.primary}aa`, letterSpacing: "4px",
+                  transition: "color .5s" }}>
                   鬼殺隊 · {T.breathing}
                 </p>
 
                 {/* MAIN BLADE */}
-                <div style={{ display:"flex", justifyContent:"center", marginBottom:"10px",
-                  animation:"katanaDraw 1.2s .2s ease-out both" }}>
+                <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: "12px",
+                  animation: "katanaDraw 1.2s .2s ease-out both" }}>
                   {theme === "zenitsu"
-                    ? <Katana width={230} color={T.primary} secondary={T.secondary} glowing={true}/>
-                    : <TanjiroKatana width={230} glowing={true}/>}
+                    ? <Katana width={200} color={T.primary} secondary={T.secondary} glowing={true}/>
+                    : <TanjiroKatana width={200} glowing={true}/>}
                 </div>
 
                 {/* Dynamic character name + month */}
-                <h1 style={{ margin:"0 0 4px", fontFamily:"'Cinzel',serif",
-                  fontSize:"46px", fontWeight:900, lineHeight:1, letterSpacing:"-0.5px" }}>
-                  <span style={{ color:T.primary,
-                    textShadow:`0 0 24px ${T.primary}aa, 0 0 50px ${T.primary}55`,
-                    transition:"color .5s, text-shadow .5s" }}>
+                <h1 style={{ margin: "0 0 4px", fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontSize: "44px", fontWeight: 900, lineHeight: 1.05, letterSpacing: "-0.5px" }}>
+                  <span style={{ color: T.primary,
+                    textShadow: `0 0 24px ${T.primary}aa, 0 0 50px ${T.primary}55`,
+                    transition: "color .5s, text-shadow .5s" }}>
                     {monthWord}
                   </span>
-                  <span style={{ color:T.muted, transition:"color .5s" }}> {yearWord}</span>
+                  <span style={{ color: T.muted, transition: "color .5s" }}> {yearWord}</span>
                 </h1>
 
-                <p style={{ margin:"4px 0 4px", fontFamily:"'Share Tech Mono',monospace",
-                  fontSize:"9px", color:T.dim, letterSpacing:"3px", textTransform:"uppercase",
-                  transition:"color .5s" }}>
+                <p style={{ margin: "6px 0", fontFamily: "'Inter', sans-serif",
+                  fontSize: "9px", color: T.dim, letterSpacing: "2px", textTransform: "uppercase",
+                  transition: "color .5s" }}>
                   {T.nameJP} · {T.name} · PERSONAL LEDGER
                 </p>
 
-                <p style={{ margin:"0 0 8px", fontFamily:"'Noto Serif JP',serif",
-                  fontSize:"12px", color:`${T.primary}44`, letterSpacing:"4px",
-                  transition:"color .5s" }}>
+                <p style={{ margin: "0 0 6px", fontFamily: "'Noto Serif JP',serif",
+                  fontSize: "12px", color: `${T.primary}77`, letterSpacing: "3px",
+                  transition: "color .5s" }}>
                   {T.form}
                 </p>
 
+                <p style={{ margin: "10px 0 0", fontFamily: "'Inter', sans-serif",
+                  fontSize: "11.5px", color: T.dim, fontStyle: "italic", lineHeight: "1.4", maxWidth: "260px",
+                  transition: "color .5s" }}>
+                  "{T.quote}"
+                </p>
+
                 {/* Interactive Month Selector */}
-                <div style={{ display: "flex", justifyContent: "center", marginTop: "12px", marginBottom: "8px" }}>
-                  <label style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
-                    <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "8px", color: `${T.primary}66`, letterSpacing: "1px" }}>SELECT ERA / MONTH</span>
+                <div style={{ display: "flex", justifyContent: "flex-start", marginTop: "16px", marginBottom: "4px" }}>
+                  <label style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: "4px" }}>
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "8px", color: `${T.primary}66`, letterSpacing: "1px" }}>SELECT ERA / MONTH</span>
                     <select
                       value={activeMonth}
                       onChange={(e) => {
@@ -1221,8 +1240,8 @@ export default function App() {
                         color: T.primary,
                         border: `1px solid ${T.primary}33`,
                         borderRadius: "8px",
-                        padding: "4px 10px",
-                        fontFamily: "'Share Tech Mono',monospace",
+                        padding: "5px 10px",
+                        fontFamily: "'Inter', sans-serif",
                         fontSize: "10px",
                         letterSpacing: "1.5px",
                         cursor: "pointer",
@@ -1239,28 +1258,6 @@ export default function App() {
                     </select>
                   </label>
                 </div>
-
-                {/* Second smaller blade */}
-                <div style={{ display:"flex", justifyContent:"center", opacity:0.4,
-                  animation:"katanaDraw 1.4s .7s ease-out both" }}>
-                  {theme === "zenitsu"
-                    ? <Katana width={150} color={T.secondary} secondary={T.primary} glowing={false}/>
-                    : <TanjiroKatana width={150} glowing={false}/>}
-                </div>
-
-                {/* Water waves for Tanjiro */}
-                {theme === "tanjiro" && (
-                  <div style={{ marginTop:"8px" }}>
-                    <WaterWave color={T.primary} width={210} opacity={0.4}/>
-                  </div>
-                )}
-
-                {/* Quote */}
-                <p style={{ margin:"10px 0 0", fontFamily:"'Noto Serif JP',serif",
-                  fontSize:"9px", color:`${T.primary}33`, letterSpacing:"1.5px",
-                  fontStyle:"italic", transition:"color .5s" }}>
-                  "{T.quote}"
-                </p>
               </div>
             </div>
 
@@ -1287,7 +1284,7 @@ export default function App() {
               padding: "30px",
               textAlign: "center",
               color: T.primary,
-              fontFamily: "'Share Tech Mono',monospace",
+              fontFamily: "'Inter', sans-serif",
               fontSize: "14px",
               letterSpacing: "1.5px",
               boxShadow: `0 0 15px ${T.primary}22`,
@@ -1309,10 +1306,10 @@ export default function App() {
               boxShadow: "0 0 15px rgba(255, 68, 68, 0.15)",
               marginBottom: "20px"
             }}>
-              <strong style={{ fontFamily: "'Cinzel',serif", fontSize: "16px", display: "block", marginBottom: "6px" }}>
+              <strong style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: "16px", display: "block", marginBottom: "6px" }}>
                 SYNC ERROR OCCURRED
               </strong>
-              <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "11px", color: "#d0cce8" }}>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "11px", color: "#d0cce8" }}>
                 {error}
               </span>
             </div>
@@ -1341,7 +1338,7 @@ export default function App() {
                     <div style={{ position:"absolute", bottom:"8px", right:"6px", opacity:.06 }}>
                       <MiniKatana color={accent} size={48}/>
                     </div>
-                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontWeight:700,
+                    <div style={{ fontFamily:"'Inter', sans-serif", fontWeight:700,
                       fontSize:"20px", color:accent,
                       textShadow:`0 0 16px ${accent}77`,
                       display:"block", marginBottom:"5px", position:"relative", zIndex:1,
@@ -1349,7 +1346,7 @@ export default function App() {
                       {value}
                     </div>
                     <div style={{ fontSize:"8px", color:T.dim,
-                      fontFamily:"'Share Tech Mono',monospace",
+                      fontFamily:"'Inter', sans-serif",
                       letterSpacing:"1.5px", textTransform:"uppercase",
                       position:"relative", zIndex:1, transition:"color .5s" }}>
                       {label}
@@ -1370,17 +1367,17 @@ export default function App() {
                   <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
                     background: budgetRemaining < 0 ? "#ff4444" : T.primary, opacity:.7 }}/>
                   <div>
-                    <span style={{ fontSize:"8px", color:T.dim, fontFamily:"'Share Tech Mono',monospace", letterSpacing:"1px", textTransform:"uppercase" }}>
+                    <span style={{ fontSize:"8px", color:T.dim, fontFamily:"'Inter', sans-serif", letterSpacing:"1px", textTransform:"uppercase" }}>
                       BUDGET PULSE
                     </span>
-                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontWeight:700,
+                    <div style={{ fontFamily:"'Inter', sans-serif", fontWeight:700,
                       fontSize:"15px", color: budgetRemaining < 0 ? "#ff4444" : T.primary,
                       textShadow:`0 0 12px ${budgetRemaining < 0 ? "#ff4444" : T.primary}55`,
                       marginTop: "2px", transition:"color .5s" }}>
                       {budgetRemaining < 0 ? `-${fmt(Math.abs(budgetRemaining))}` : fmt(budgetRemaining)}
                     </div>
                   </div>
-                  <div style={{ fontSize:"8px", color: T.muted, fontFamily:"'Share Tech Mono',monospace", marginTop: "6px" }}>
+                  <div style={{ fontSize:"8px", color: T.muted, fontFamily:"'Inter', sans-serif", marginTop: "6px" }}>
                     {budgetRemaining < 0 ? "Exceeded!" : `${budgetUsed.toFixed(0)}% Used`}
                   </div>
                 </div>
@@ -1393,17 +1390,17 @@ export default function App() {
                   <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
                     background:T.secondary, opacity:.7 }}/>
                   <div>
-                    <span style={{ fontSize:"8px", color:T.dim, fontFamily:"'Share Tech Mono',monospace", letterSpacing:"1px", textTransform:"uppercase" }}>
+                    <span style={{ fontSize:"8px", color:T.dim, fontFamily:"'Inter', sans-serif", letterSpacing:"1px", textTransform:"uppercase" }}>
                       HIGHEST STRIKE
                     </span>
-                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontWeight:700,
+                    <div style={{ fontFamily:"'Inter', sans-serif", fontWeight:700,
                       fontSize:"14px", color:T.secondary,
                       textShadow:`0 0 12px ${T.secondary}55`,
                       marginTop: "2px", transition:"color .5s" }}>
                       {highestDay.date ? dayFormatter.format(highestDay.date) : "None"}
                     </div>
                   </div>
-                  <div style={{ fontSize:"8px", color: T.muted, fontFamily:"'Share Tech Mono',monospace", marginTop: "6px" }}>
+                  <div style={{ fontSize:"8px", color: T.muted, fontFamily:"'Inter', sans-serif", marginTop: "6px" }}>
                     {highestDay.total > 0 ? `${fmt(highestDay.total)} Spent` : "No strikes"}
                   </div>
                 </div>
@@ -1416,17 +1413,17 @@ export default function App() {
                   <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
                     background:T.accent, opacity:.7 }}/>
                   <div>
-                    <span style={{ fontSize:"8px", color:T.dim, fontFamily:"'Share Tech Mono',monospace", letterSpacing:"1px", textTransform:"uppercase" }}>
+                    <span style={{ fontSize:"8px", color:T.dim, fontFamily:"'Inter', sans-serif", letterSpacing:"1px", textTransform:"uppercase" }}>
                       ALLOWANCE
                     </span>
-                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontWeight:700,
+                    <div style={{ fontFamily:"'Inter', sans-serif", fontWeight:700,
                       fontSize:"14px", color:T.accent,
                       textShadow:`0 0 12px ${T.accent}55`,
                       marginTop: "2px", transition:"color .5s" }}>
                       {fmt(dailyAllowanceRemaining)}
                     </div>
                   </div>
-                  <div style={{ fontSize:"8px", color: T.muted, fontFamily:"'Share Tech Mono',monospace", marginTop: "6px" }}>
+                  <div style={{ fontSize:"8px", color: T.muted, fontFamily:"'Inter', sans-serif", marginTop: "6px" }}>
                     {daysRemaining} Days Left
                   </div>
                 </div>
@@ -1439,13 +1436,13 @@ export default function App() {
                   alignItems:"center" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
                     <MiniKatana color={`${T.primary}77`} size={28}/>
-                    <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:"9px",
+                    <span style={{ fontFamily:"'Inter', sans-serif", fontSize:"9px",
                       letterSpacing:"2px", color:`${T.primary}77`, textTransform:"uppercase",
                       transition:"color .5s" }}>
                       ENERGY DISTRIBUTION
                     </span>
                   </div>
-                  <span style={{ fontFamily:"'Share Tech Mono',monospace",
+                  <span style={{ fontFamily:"'Inter', sans-serif",
                     fontSize:"9px", color:T.muted, transition:"color .5s" }}>
                     MAY {yearWord}
                   </span>
@@ -1475,7 +1472,7 @@ export default function App() {
                         boxShadow:`0 0 5px ${T.catColors[i % T.catColors.length]}88`,
                         transition:"background .5s" }}/>
                       <span style={{ fontSize:"9px", color:T.dim,
-                        fontFamily:"'Share Tech Mono',monospace",
+                        fontFamily:"'Inter', sans-serif",
                         transition:"color .5s" }}>
                         {c.name.split(" ")[0]}
                       </span>
@@ -1495,7 +1492,7 @@ export default function App() {
               }}>
                 <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
                   <MiniKatana color={`${T.primary}77`} size={28}/>
-                  <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
                     STRIKE SEARCH & FILTERS
                   </span>
                 </div>
@@ -1503,7 +1500,7 @@ export default function App() {
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                   {/* Search input */}
                   <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>SEARCH LOGS</span>
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>SEARCH LOGS</span>
                     <input
                       value={query}
                       onChange={(e) => setQuery(e.target.value)}
@@ -1514,7 +1511,7 @@ export default function App() {
                         border: `1px solid ${T.primary}22`,
                         borderRadius: "8px",
                         padding: "8px 12px",
-                        fontFamily: "'Rajdhani',sans-serif",
+                        fontFamily: "'Plus Jakarta Sans', sans-serif",
                         fontSize: "12px",
                         outline: "none",
                         transition: "border-color 0.3s"
@@ -1527,7 +1524,7 @@ export default function App() {
                   {/* Category Select & Actions */}
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", alignItems: "flex-end" }}>
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>BREATHING FORM</span>
+                      <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>BREATHING FORM</span>
                       <select
                         value={selectedCategory}
                         onChange={(e) => {
@@ -1540,7 +1537,7 @@ export default function App() {
                           border: `1px solid ${T.primary}22`,
                           borderRadius: "8px",
                           padding: "7px 10px",
-                          fontFamily: "'Share Tech Mono',monospace",
+                          fontFamily: "'Inter', sans-serif",
                           fontSize: "11px",
                           outline: "none",
                           cursor: "pointer"
@@ -1567,7 +1564,7 @@ export default function App() {
                           border: `1px solid ${T.primary}44`,
                           borderRadius: "8px",
                           padding: "7px",
-                          fontFamily: "'Share Tech Mono',monospace",
+                          fontFamily: "'Inter', sans-serif",
                           fontSize: "10px",
                           cursor: "pointer",
                           transition: "all 0.2s"
@@ -1588,7 +1585,7 @@ export default function App() {
                           border: "none",
                           borderRadius: "8px",
                           padding: "8px",
-                          fontFamily: "'Share Tech Mono',monospace",
+                          fontFamily: "'Inter', sans-serif",
                           fontSize: "10px",
                           fontWeight: 700,
                           cursor: "pointer",
@@ -1612,7 +1609,7 @@ export default function App() {
                 {theme==="zenitsu"
                   ? <Kunai color={`${T.primary}66`} size={13} rotate={-90}/>
                   : <Droplet size={11} color={`${T.primary}66`} opacity={0.8}/>}
-                <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:"9px",
+                <span style={{ fontFamily:"'Inter', sans-serif", fontSize:"9px",
                   letterSpacing:"2.5px", color:`${T.primary}66`,
                   textTransform:"uppercase", whiteSpace:"nowrap",
                   transition:"color .5s" }}>
@@ -1624,7 +1621,7 @@ export default function App() {
                 <div style={{ flex:1, height:"1px",
                   background:`linear-gradient(90deg,${T.primary}33,transparent)`,
                   transition:"background .5s" }}/>
-                <span style={{ fontFamily:"'Share Tech Mono',monospace",
+                <span style={{ fontFamily:"'Inter', sans-serif",
                   fontSize:"9px", color:T.muted, marginLeft:"6px",
                   transition:"color .5s" }}>
                   {groupedCategories.length} forms
@@ -1715,7 +1712,7 @@ export default function App() {
                             <div>
                               <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"2px" }}>
                                 <span style={{ fontSize:"14px", fontWeight:700, color:"#d0cce8",
-                                  fontFamily:"'Rajdhani',sans-serif", letterSpacing:"0.5px" }}>
+                                  fontFamily:"'Plus Jakarta Sans', sans-serif", letterSpacing:"0.5px" }}>
                                   {category.name}
                                 </span>
                                 <span style={{ fontFamily:"'Noto Serif JP',serif",
@@ -1731,7 +1728,7 @@ export default function App() {
                               <div style={{ display:"flex", alignItems:"center", gap:"5px" }}>
                                 <MiniKatana color={cc+"77"} size={28}/>
                                 <span style={{ fontSize:"10px",
-                                  fontFamily:"'Share Tech Mono',monospace",
+                                  fontFamily:"'Inter', sans-serif",
                                   color:cc+"77", letterSpacing:"0.4px",
                                   transition:"color .5s" }}>
                                   {category.items.length} strikes · {share}%
@@ -1741,7 +1738,7 @@ export default function App() {
                           </div>
                           <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
                             <span style={{ fontSize:"16px", fontWeight:700,
-                              fontFamily:"'Share Tech Mono',monospace",
+                              fontFamily:"'Inter', sans-serif",
                               color:cc, textShadow:`0 0 14px ${cc}aa`,
                               transition:"color .5s, text-shadow .5s" }}>
                               {fmt(category.total)}
@@ -1774,11 +1771,11 @@ export default function App() {
 
                         {/* Progress Details */}
                         <div style={{ display:"flex", justifyContent:"space-between", marginTop:"4px" }}>
-                          <span style={{ fontSize:"9px", fontFamily:"'Share Tech Mono',monospace",
+                          <span style={{ fontSize:"9px", fontFamily:"'Inter', sans-serif",
                             color:cc+"88", transition:"color .5s" }}>
                             {hasCatBudget ? `${catUsagePercent.toFixed(0)}% of limit` : `${share}% energy`}
                           </span>
-                          <span style={{ fontSize:"9px", fontFamily:"'Share Tech Mono',monospace",
+                          <span style={{ fontSize:"9px", fontFamily:"'Inter', sans-serif",
                             color:T.muted, transition:"color .5s" }}>
                             {hasCatBudget ? `${fmt(category.total)} / ${fmt(catBudgetVal)}` : `${fmt(category.total)}`}
                           </span>
@@ -1813,7 +1810,7 @@ export default function App() {
                                     padding: "4px 8px",
                                     fontSize: "11px",
                                     outline: "none",
-                                    fontFamily: "'Share Tech Mono',monospace"
+                                    fontFamily: "'Inter', sans-serif"
                                   }}
                                 />
                                 <button
@@ -1827,7 +1824,7 @@ export default function App() {
                                     fontSize: "10px",
                                     fontWeight: 700,
                                     cursor: "pointer",
-                                    fontFamily: "'Share Tech Mono',monospace"
+                                    fontFamily: "'Inter', sans-serif"
                                   }}
                                 >
                                   SAVE
@@ -1847,7 +1844,7 @@ export default function App() {
                                     padding: "4px 8px",
                                     fontSize: "10px",
                                     cursor: "pointer",
-                                    fontFamily: "'Share Tech Mono',monospace"
+                                    fontFamily: "'Inter', sans-serif"
                                   }}
                                 >
                                   CANCEL
@@ -1855,7 +1852,7 @@ export default function App() {
                               </form>
                             ) : (
                               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <span style={{ fontSize: "9px", color: T.dim, fontFamily: "'Share Tech Mono',monospace" }}>
+                                <span style={{ fontSize: "9px", color: T.dim, fontFamily: "'Inter', sans-serif" }}>
                                   {hasCatBudget ? `FORM ENERGY CAP: ${fmt(catBudgetVal)}` : "NO BUDGET LIMIT SET"}
                                 </span>
                                 <button
@@ -1873,7 +1870,7 @@ export default function App() {
                                     padding: "2px 6px",
                                     fontSize: "9px",
                                     cursor: "pointer",
-                                    fontFamily: "'Share Tech Mono',monospace",
+                                    fontFamily: "'Inter', sans-serif",
                                     transition: "all 0.2s"
                                   }}
                                 >
@@ -1893,7 +1890,7 @@ export default function App() {
                               {theme==="zenitsu"
                                 ? <Bolt size={10} color={cc+"88"}/>
                                 : <Droplet size={9} color={cc} opacity={0.7}/>}
-                              <span style={{ fontFamily:"'Share Tech Mono',monospace",
+                              <span style={{ fontFamily:"'Inter', sans-serif",
                                 fontSize:"8px", letterSpacing:"2px",
                                 color:cc+"77", textTransform:"uppercase",
                                 transition:"color .5s" }}>
@@ -1915,14 +1912,14 @@ export default function App() {
                                     background:cc, boxShadow:`0 0 5px ${cc}99`, flexShrink:0 }}/>
                                   <div>
                                     <div style={{ fontSize:"12px", color:"#6a6a9a",
-                                      fontFamily:"'Share Tech Mono',monospace" }}>{tx.name}</div>
+                                      fontFamily:"'Inter', sans-serif" }}>{tx.name}</div>
                                     <div style={{ fontSize:"10px", color:T.muted,
-                                      fontFamily:"'Share Tech Mono',monospace", marginTop:"1px",
+                                      fontFamily:"'Inter', sans-serif", marginTop:"1px",
                                       transition:"color .5s" }}>{tx.dateLabel}</div>
                                   </div>
                                 </div>
                                 <span style={{ fontSize:"13px", fontWeight:600,
-                                  fontFamily:"'Share Tech Mono',monospace",
+                                  fontFamily:"'Inter', sans-serif",
                                   color:cc, textShadow:`0 0 10px ${cc}55`,
                                   transition:"color .5s" }}>
                                   {fmt(tx.amount)}
@@ -1950,17 +1947,17 @@ export default function App() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       <MiniKatana color={`${T.primary}77`} size={28}/>
-                      <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
+                      <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
                         DAILY STRIKE RHYTHM
                       </span>
                     </div>
-                    <span style={{ fontSize: "8px", color: T.muted, fontFamily: "'Share Tech Mono',monospace" }}>
+                    <span style={{ fontSize: "8px", color: T.muted, fontFamily: "'Inter', sans-serif" }}>
                       SPEND BY DAY
                     </span>
                   </div>
 
                   {dailySpend.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "20px", color: T.muted, fontSize: "11px", fontFamily: "'Share Tech Mono',monospace" }}>
+                    <div style={{ textAlign: "center", padding: "20px", color: T.muted, fontSize: "11px", fontFamily: "'Inter', sans-serif" }}>
                       NO STRIKES RECORDED FOR THIS MONTH
                     </div>
                   ) : (
@@ -1988,7 +1985,7 @@ export default function App() {
                                 position: "relative"
                               }}
                             />
-                            <span style={{ fontSize: "8px", color: T.dim, fontFamily: "'Share Tech Mono',monospace", marginTop: "4px" }}>
+                            <span style={{ fontSize: "8px", color: T.dim, fontFamily: "'Inter', sans-serif", marginTop: "4px" }}>
                               {day.date.getDate()}
                             </span>
                           </div>
@@ -2008,17 +2005,17 @@ export default function App() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       <MiniKatana color={`${T.primary}77`} size={28}/>
-                      <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
+                      <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
                         CHRONOLOGY OF STRIKES
                       </span>
                     </div>
-                    <span style={{ fontSize: "8px", color: T.muted, fontFamily: "'Share Tech Mono',monospace" }}>
+                    <span style={{ fontSize: "8px", color: T.muted, fontFamily: "'Inter', sans-serif" }}>
                       MONTH COMPARISON
                     </span>
                   </div>
 
                   {monthlySpend.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "20px", color: T.muted, fontSize: "11px", fontFamily: "'Share Tech Mono',monospace" }}>
+                    <div style={{ textAlign: "center", padding: "20px", color: T.muted, fontSize: "11px", fontFamily: "'Inter', sans-serif" }}>
                       NO HISTORY FOUND
                     </div>
                   ) : (
@@ -2050,7 +2047,7 @@ export default function App() {
                             <span style={{
                               fontSize: "8px",
                               color: isActive ? T.primary : T.dim,
-                              fontFamily: "'Share Tech Mono',monospace",
+                              fontFamily: "'Inter', sans-serif",
                               fontWeight: isActive ? 700 : 400,
                               marginBottom: "4px",
                               transition: "color 0.3s"
@@ -2069,7 +2066,7 @@ export default function App() {
                             <span style={{
                               fontSize: "8px",
                               color: isActive ? T.primary : T.dim,
-                              fontFamily: "'Share Tech Mono',monospace",
+                              fontFamily: "'Inter', sans-serif",
                               marginTop: "4px",
                               fontWeight: isActive ? 700 : 400
                             }}>
@@ -2096,12 +2093,12 @@ export default function App() {
                 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px" }}>
                     <MiniKatana color={`${T.primary}77`} size={28}/>
-                    <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
                       SET MONTHLY ENERGY CAP
                     </span>
                   </div>
                   <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>BUDGET CAPACITY (INR)</span>
+                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>BUDGET CAPACITY (INR)</span>
                     <input
                       type="number"
                       min="0"
@@ -2114,7 +2111,7 @@ export default function App() {
                         border: `1px solid ${T.primary}22`,
                         borderRadius: "8px",
                         padding: "8px 12px",
-                        fontFamily: "'Share Tech Mono',monospace",
+                        fontFamily: "'Inter', sans-serif",
                         fontSize: "12px",
                         outline: "none"
                       }}
@@ -2132,7 +2129,7 @@ export default function App() {
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       <MiniKatana color={`${T.primary}77`} size={28}/>
-                      <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
+                      <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
                         SIMULATE CUSTOM STRIKE (LOCAL)
                       </span>
                     </div>
@@ -2144,7 +2141,7 @@ export default function App() {
                           background: "transparent",
                           border: "none",
                           color: "#ff4444",
-                          fontFamily: "'Share Tech Mono',monospace",
+                          fontFamily: "'Inter', sans-serif",
                           fontSize: "9px",
                           cursor: "pointer",
                           textTransform: "uppercase"
@@ -2158,7 +2155,7 @@ export default function App() {
                   <form onSubmit={handleAddExpense} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                       <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                        <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>STRIKE NAME</span>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>STRIKE NAME</span>
                         <input
                           required
                           placeholder="Starbucks Coffee, etc."
@@ -2177,7 +2174,7 @@ export default function App() {
                       </label>
                       
                       <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                        <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>AMOUNT (INR)</span>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>AMOUNT (INR)</span>
                         <input
                           required
                           type="number"
@@ -2200,7 +2197,7 @@ export default function App() {
 
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
                       <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                        <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>BREATHING FORM</span>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>BREATHING FORM</span>
                         {isCustomCategory ? (
                           <div style={{ display: "flex", gap: "4px" }}>
                             <input
@@ -2230,7 +2227,7 @@ export default function App() {
                                 padding: "0 8px",
                                 fontSize: "9px",
                                 cursor: "pointer",
-                                fontFamily: "'Share Tech Mono',monospace"
+                                fontFamily: "'Inter', sans-serif"
                               }}
                             >
                               X
@@ -2269,7 +2266,7 @@ export default function App() {
                       </label>
 
                       <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                        <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>DATE OF STRIKE</span>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>DATE OF STRIKE</span>
                         <input
                           type="date"
                           required
@@ -2298,7 +2295,7 @@ export default function App() {
                         padding: "10px",
                         fontWeight: 700,
                         fontSize: "11px",
-                        fontFamily: "'Share Tech Mono',monospace",
+                        fontFamily: "'Inter', sans-serif",
                         letterSpacing: "1px",
                         cursor: "pointer",
                         transition: "all 0.3s",
@@ -2336,7 +2333,7 @@ export default function App() {
             <div style={{ height:"4px", borderRadius:"2px",
               background:`repeating-linear-gradient(${T.haoriAngle},${T.haoriColor1} 0,${T.haoriColor1} 8px,${T.haoriColor2} 8px,${T.haoriColor2} 16px)`,
               opacity:0.4, transition:"background .5s", marginBottom:"10px" }}/>
-            <p style={{ margin:"4px 0 0", fontFamily:"'Share Tech Mono',monospace",
+            <p style={{ margin:"4px 0 0", fontFamily:"'Inter', sans-serif",
               fontSize:"10px", color:T.dim, letterSpacing:"2px", textTransform:"uppercase",
               transition:"color .5s" }}>
               DEMON SLAYER CORPS · LEDGER SYSTEM
@@ -2383,7 +2380,7 @@ export default function App() {
         }}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
-          <h2 style={{ fontFamily: "'Cinzel',serif", color: T.primary, fontSize: "20px", margin: 0, fontWeight: 700 }}>
+          <h2 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: T.primary, fontSize: "20px", margin: 0, fontWeight: 700 }}>
             SYNC PORTAL
           </h2>
           <button
@@ -2409,7 +2406,7 @@ export default function App() {
 
           <form onSubmit={handleConnectSheet} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>GOOGLE SHEET URL OR ID</span>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>GOOGLE SHEET URL OR ID</span>
               <input
                 required
                 type="text"
@@ -2429,7 +2426,7 @@ export default function App() {
             </label>
 
             <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-              <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>SHEET TAB NAME (CASE-SENSITIVE)</span>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>SHEET TAB NAME (CASE-SENSITIVE)</span>
               <input
                 required
                 type="text"
@@ -2478,7 +2475,7 @@ export default function App() {
                   padding: "12px",
                   fontWeight: 700,
                   fontSize: "11px",
-                  fontFamily: "'Share Tech Mono',monospace",
+                  fontFamily: "'Inter', sans-serif",
                   cursor: "pointer",
                   transition: "all 0.3s",
                   boxShadow: `0 0 10px ${T.primary}44`
@@ -2499,7 +2496,7 @@ export default function App() {
                     padding: "10px",
                     fontWeight: 600,
                     fontSize: "10px",
-                    fontFamily: "'Share Tech Mono',monospace",
+                    fontFamily: "'Inter', sans-serif",
                     cursor: "pointer",
                     transition: "all 0.2s"
                   }}
@@ -2513,7 +2510,7 @@ export default function App() {
           <hr style={{ border: "none", borderTop: `1px solid ${T.primary}22`, margin: "16px 0" }} />
 
           <section style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
-            <h3 style={{ fontFamily: "'Cinzel',serif", color: T.primary, fontSize: "13px", margin: "0 0 4px" }}>
+            <h3 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: T.primary, fontSize: "13px", margin: "0 0 4px" }}>
               📖 sharing settings
             </h3>
             <ol style={{ margin: 0, paddingLeft: "16px", color: "#d0cce8", fontSize: "11px", display: "flex", flexDirection: "column", gap: "8px", lineHeight: 1.4 }}>
