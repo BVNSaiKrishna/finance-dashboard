@@ -1,12 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import "./App.css";
 
 const DEFAULT_SHEET_URL =
   "https://opensheet.elk.sh/10A8amXj7QMzCfByz3Craq5dTnqwabD-0eN2v7ppoIsc/Expense";
 
 const SHEET_URL = import.meta.env.VITE_SHEET_URL || DEFAULT_SHEET_URL;
-
-const palette = ["#f8d66d", "#5eead4", "#a78bfa", "#fb7185", "#7dd3fc", "#86efac"];
 
 const DEFAULT_MONTHLY_BUDGET = 50000;
 const BUDGET_STORAGE_KEY = "finance-dashboard-monthly-budget";
@@ -16,12 +13,6 @@ const CUSTOM_SHEET_NAME_KEY = "finance-dashboard-custom-sheet-name";
 const CUSTOM_SHEET_ACTIVE_KEY = "finance-dashboard-custom-sheet-active";
 const CATEGORY_BUDGETS_KEY = "finance-dashboard-category-budgets";
 const THEME_KEY = "finance-dashboard-theme";
-
-const currency = new Intl.NumberFormat("en-IN", {
-  maximumFractionDigits: 0,
-  style: "currency",
-  currency: "INR",
-});
 
 const monthFormatter = new Intl.DateTimeFormat("en-IN", {
   month: "long",
@@ -167,31 +158,287 @@ function getStoredCategoryBudgets() {
   }
 }
 
-function getStoredTheme() {
-  try {
-    return localStorage.getItem(THEME_KEY) || "dark";
-  } catch {
-    return "dark";
+const fmt = (n) => "₹" + n.toLocaleString("en-IN", { maximumFractionDigits: 0 });
+const pct = (val, total) => ((val / total) * 100).toFixed(1);
+
+/* Emojis and Form numbers dictionary for custom categories loaded from Google Sheets */
+const categoryMap = {
+  investments: { emoji: "🏦", form: "壱ノ型", englishForm: "First Form" },
+  investment: { emoji: "🏦", form: "壱ノ型", englishForm: "First Form" },
+  transport: { emoji: "🚗", form: "弐ノ型", englishForm: "Second Form" },
+  travel: { emoji: "🚗", form: "弐ノ型", englishForm: "Second Form" },
+  emi: { emoji: "🚗", form: "弐ノ型", englishForm: "Second Form" },
+  groceries: { emoji: "🛒", form: "参ノ型", englishForm: "Third Form" },
+  grocery: { emoji: "🛒", form: "参ノ型", englishForm: "Third Form" },
+  utilities: { emoji: "💡", form: "四ノ型", englishForm: "Fourth Form" },
+  utility: { emoji: "💡", form: "四ノ型", englishForm: "Fourth Form" },
+  bills: { emoji: "💡", form: "四ノ型", englishForm: "Fourth Form" },
+  bill: { emoji: "💡", form: "四ノ型", englishForm: "Fourth Form" },
+  dryfruits: { emoji: "🌰", form: "伍ノ型", englishForm: "Fifth Form" },
+  snacks: { emoji: "🌰", form: "伍ノ型", englishForm: "Fifth Form" },
+  food: { emoji: "🍽️", form: "六ノ型", englishForm: "Sixth Form" },
+  dining: { emoji: "🍽️", form: "六ノ型", englishForm: "Sixth Form" },
+  health: { emoji: "💊", form: "漆ノ型", englishForm: "Seventh Form" },
+  medical: { emoji: "💊", form: "漆ノ型", englishForm: "Seventh Form" },
+  pharmacy: { emoji: "💊", form: "漆ノ型", englishForm: "Seventh Form" }
+};
+
+const kanjiForms = ["壱ノ型", "弐ノ型", "参ノ型", "四ノ型", "伍ノ型", "六ノ型", "漆ノ型", "捌ノ型", "玖ノ型", "拾ノ型"];
+
+function getCategoryDetails(name, index) {
+  const clean = String(name || "").toLowerCase().trim();
+  for (const key of Object.keys(categoryMap)) {
+    if (clean.includes(key)) {
+      return categoryMap[key];
+    }
   }
+  const formIndex = index % kanjiForms.length;
+  return {
+    emoji: "⚔️",
+    form: kanjiForms[formIndex],
+    englishForm: `Form ${formIndex + 1}`
+  };
 }
 
-function buildDonutGradient(categories, total) {
-  if (total <= 0 || categories.length === 0) {
-    return "rgba(255, 255, 255, 0.08)";
-  }
+/* ═══════════════════════════════════════
+   THEMES
+═══════════════════════════════════════ */
+const THEMES = {
+  zenitsu: {
+    id: "zenitsu",
+    name: "ZENITSU",
+    nameJP: "善逸",
+    breathing: "雷の呼吸",
+    breathingEN: "THUNDER BREATHING",
+    form: "壱ノ型 · 霹靂一閃",
+    formEN: "THUNDERCLAP AND FLASH",
+    quote: "I can do it... when I'm asleep.",
+    bg: "#07070f",
+    panel: "#0d0d1a",
+    raised: "#12121e",
+    border: "#1a1a2c",
+    primary: "#FFD700",
+    secondary: "#FFA040",
+    accent: "#AAFF44",
+    glow: "#FFD700",
+    dim: "#2a2a45",
+    muted: "#1a1a30",
+    kanji: "雷",
+    haoriColor1: "#FFD700",
+    haoriColor2: "#0a0a14",
+    haoriAngle: "90deg",
+    bladeColor: "#FFD700",
+    catColors: ["#FFD700","#FFA040","#AAFF44","#66DDFF","#FF8844","#FF66BB","#44FFCC"],
+    switchBg: "linear-gradient(135deg,#FFD700,#FFA040)",
+    switchText: "#0a0a14",
+  },
+  tanjiro: {
+    id: "tanjiro",
+    name: "TANJIRO",
+    nameJP: "炭治郎",
+    breathing: "水の呼吸",
+    breathingEN: "WATER BREATHING",
+    form: "壱ノ型 · 水面斬り",
+    formEN: "SURFACE SLASH",
+    quote: "I will never give up. I will never stop.",
+    bg: "#050d10",
+    panel: "#08151a",
+    raised: "#0d1f26",
+    border: "#112830",
+    primary: "#00AADD",
+    secondary: "#006688",
+    accent: "#00FFCC",
+    glow: "#00CCFF",
+    dim: "#1a3a44",
+    muted: "#0d2530",
+    kanji: "水",
+    haoriColor1: "#CC0000",
+    haoriColor2: "#111",
+    haoriAngle: "45deg",
+    bladeColor: "#222",
+    catColors: ["#00AADD","#0066AA","#00FFCC","#4488FF","#00DD88","#44AAFF","#00EE99"],
+    switchBg: "linear-gradient(135deg,#00AADD,#006688)",
+    switchText: "#ffffff",
+  },
+};
 
-  let cursor = 0;
-  const segments = categories.map((category, index) => {
-    const start = cursor;
-    const size = (category.total / total) * 100;
-    cursor += size;
-    const color = palette[index % palette.length];
-    return `${color} ${start}% ${cursor}%`;
-  });
+/* ═══════════════════════════════════════
+   SVG COMPONENTS
+═══════════════════════════════════════ */
 
-  return `conic-gradient(${segments.join(", ")})`;
-}
+const Katana = ({ width = 260, color = "#FFD700", glowing = false, secondary = "#FFA040" }) => (
+  <svg width={width} height={36} viewBox="0 0 260 36" fill="none"
+    style={{ filter: glowing ? `drop-shadow(0 0 7px ${color}) drop-shadow(0 0 20px ${color}88)` : `drop-shadow(0 0 3px ${color}55)` }}>
+    <path d="M28 16 L240 13 L252 17 L240 21 L28 18 Z" fill={`url(#blade-${color.replace('#','')})`}/>
+    <path d="M28 15 L240 12 L252 17" stroke="rgba(255,255,255,0.5)" strokeWidth="0.6" fill="none"/>
+    <path d="M48 17 L225 16.5" stroke="rgba(0,0,0,0.3)" strokeWidth="0.7"/>
+    <path d="M240 13 L258 17 L240 21 Z" fill={color} opacity="0.9"/>
+    <ellipse cx="28" cy="17" rx="4.5" ry="9" fill="#6B4F0A" stroke={secondary} strokeWidth="0.8"/>
+    <ellipse cx="28" cy="17" rx="2.5" ry="6" fill="#4a3508"/>
+    <circle cx="28" cy="17" r="1.5" fill={color} opacity="0.8"/>
+    <rect x="20" y="13" width="8" height="8" rx="1" fill="#C0A030" stroke={color} strokeWidth="0.4"/>
+    <path d="M4 11 L20 12 L20 22 L4 23 Z" fill="#14080a" stroke="#2a1010" strokeWidth="0.5"/>
+    {[5,8,11,14,17].map(x=>(
+      <path key={x} d={`M${x} 11 L${x+0.8} 23`} stroke={color} strokeWidth="1.4" opacity="0.7"/>
+    ))}
+    <ellipse cx="4" cy="17" rx="2.5" ry="5.5" fill="#8B6914" stroke={color} strokeWidth="0.7"/>
+    <path d="M40 15 L44 13 L42 16.5 L47 14.5 L44 18.5" stroke={color} strokeWidth="0.7" opacity="0.55"/>
+    <defs>
+      <linearGradient id={`blade-${color.replace('#','')}`} x1="28" y1="13" x2="240" y2="21" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor={color} stopOpacity="0.95"/>
+        <stop offset="40%" stopColor="#fff" stopOpacity="0.9"/>
+        <stop offset="70%" stopColor={color} stopOpacity="0.85"/>
+        <stop offset="100%" stopColor={color} stopOpacity="0.65"/>
+      </linearGradient>
+    </defs>
+  </svg>
+);
 
+const TanjiroKatana = ({ width = 260, glowing = false }) => (
+  <svg width={width} height={36} viewBox="0 0 260 36" fill="none"
+    style={{ filter: glowing ? `drop-shadow(0 0 7px #00AADD) drop-shadow(0 0 20px #00AADD88)` : `drop-shadow(0 0 4px #00AADD44)` }}>
+    <path d="M28 16 L240 13 L252 17 L240 21 L28 18 Z" fill="url(#tanjiroBlade)"/>
+    <path d="M28 15 L240 12 L252 17" stroke="rgba(0,180,255,0.35)" strokeWidth="0.8" fill="none"/>
+    <path d="M48 17 L225 16.5" stroke="rgba(0,180,255,0.15)" strokeWidth="0.7"/>
+    <path d="M240 13 L258 17 L240 21 Z" fill="#1a1a2e" opacity="0.95"/>
+    {[60,100,140,180].map(x=>(
+      <path key={x} d={`M${x} 14.5 Q${x+10} 12 ${x+20} 14.5 Q${x+30} 17 ${x+20} 19.5 Q${x+10} 22 ${x} 19.5`}
+        stroke="#00AADD" strokeWidth="0.5" fill="none" opacity="0.25"/>
+    ))}
+    <ellipse cx="28" cy="17" rx="4.5" ry="9" fill="#1a0a0a" stroke="#880000" strokeWidth="1.2"/>
+    <ellipse cx="28" cy="17" rx="2.5" ry="6" fill="#100505"/>
+    <circle cx="28" cy="17" r="1.5" fill="#CC0000" opacity="0.9"/>
+    <rect x="20" y="13" width="8" height="8" rx="1" fill="#880000" stroke="#CC0000" strokeWidth="0.4"/>
+    <path d="M4 11 L20 12 L20 22 L4 23 Z" fill="#050505"/>
+    {[5,7,9,11,13,15,17,19].map((x,i)=>(
+      <rect key={x} x={x} y={i%2===0?11:14} width="2" height="3" fill={i%2===0?"#CC0000":"#111"} opacity="0.7"/>
+    ))}
+    <ellipse cx="4" cy="17" rx="2.5" ry="5.5" fill="#440000" stroke="#CC0000" strokeWidth="0.7"/>
+    <defs>
+      <linearGradient id="tanjiroBlade" x1="28" y1="13" x2="240" y2="21" gradientUnits="userSpaceOnUse">
+        <stop offset="0%" stopColor="#111" stopOpacity="1"/>
+        <stop offset="30%" stopColor="#1a2a3a" stopOpacity="1"/>
+        <stop offset="60%" stopColor="#0a1a2a" stopOpacity="1"/>
+        <stop offset="100%" stopColor="#050d14" stopOpacity="1"/>
+      </linearGradient>
+    </defs>
+  </svg>
+);
+
+const MiniKatana = ({ color = "#FFD700", size = 70 }) => (
+  <svg width={size} height={12} viewBox="0 0 70 12" fill="none"
+    style={{ filter:`drop-shadow(0 0 3px ${color}77)` }}>
+    <path d="M7 5 L62 4 L68 6 L62 8 L7 7 Z" fill={color} opacity="0.85"/>
+    <path d="M62 4 L70 6 L62 8 Z" fill={color}/>
+    <ellipse cx="7" cy="6" rx="2.5" ry="5" fill="#4a3508" stroke={color} strokeWidth="0.5"/>
+    <rect x="1" y="3.5" width="6" height="5" rx="0.5" fill="#14080a"/>
+    {[2,4,6].map(x=><line key={x} x1={x} y1="3.5" x2={x+0.5} y2="8.5" stroke={color} strokeWidth="1" opacity="0.6"/>)}
+  </svg>
+);
+
+const Kunai = ({ color = "#888", size = 30, rotate = 0 }) => (
+  <svg width={size} height={size * 2.2} viewBox="0 0 24 52" fill="none"
+    style={{ transform:`rotate(${rotate}deg)`, filter:`drop-shadow(0 0 3px ${color}55)` }}>
+    <path d="M12 2 L15.5 16 L12 18 L8.5 16 Z" fill={color} opacity="0.9"/>
+    <path d="M12 2 L12.8 16" stroke="rgba(255,255,255,0.3)" strokeWidth="0.5"/>
+    <rect x="7" y="16" width="10" height="3" rx="1" fill="#444" stroke="#666" strokeWidth="0.4"/>
+    <rect x="10" y="19" width="4" height="16" rx="1" fill="#1a1a1a"/>
+    {[21,24,27,30,33].map(y=><line key={y} x1="10" y1={y} x2="14" y2={y} stroke={color} strokeWidth="0.8" opacity="0.6"/>)}
+    <circle cx="12" cy="40" r="4.5" fill="none" stroke="#666" strokeWidth="1.4"/>
+    <circle cx="12" cy="40" r="2" fill="none" stroke="#444" strokeWidth="0.8"/>
+    <path d="M12 44.5 Q10.5 47.5 12 51 Q13.5 47.5 12 44.5" stroke="#6B3A1A" strokeWidth="1.2" fill="none"/>
+  </svg>
+);
+
+const Bolt = ({ size = 22, color = "#FFD700", glow = false }) => (
+  <svg width={size} height={size * 1.4} viewBox="0 0 22 30" fill="none">
+    {glow && <ellipse cx="11" cy="15" rx="9" ry="13" fill={color + "18"}/>}
+    <path d="M14 2L4 17H11L8 28L19 12H12L14 2Z" fill={color}
+      style={{ filter: glow ? `drop-shadow(0 0 5px ${color})` : "none" }}/>
+  </svg>
+);
+
+const WaterWave = ({ color = "#00AADD", width = 260, opacity = 0.5 }) => (
+  <svg width={width} height={24} viewBox={`0 0 ${width} 24`} fill="none" style={{ opacity }}>
+    <path d={`M0 12 Q${width*.1} 4 ${width*.2} 12 Q${width*.3} 20 ${width*.4} 12 Q${width*.5} 4 ${width*.6} 12 Q${width*.7} 20 ${width*.8} 12 Q${width*.9} 4 ${width} 12`}
+      stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round"/>
+    <path d={`M0 16 Q${width*.12} 8 ${width*.25} 16 Q${width*.38} 24 ${width*.5} 16 Q${width*.62} 8 ${width*.75} 16 Q${width*.88} 24 ${width} 16`}
+      stroke={color} strokeWidth="0.8" fill="none" strokeLinecap="round" opacity="0.5"/>
+  </svg>
+);
+
+const CorpsMark = ({ size = 28, color = "#FFD700", opacity = 0.85 }) => (
+  <svg width={size} height={size} viewBox="0 0 36 36" fill="none" style={{ opacity }}>
+    <circle cx="18" cy="18" r="16" stroke={color} strokeWidth="1.2" fill="none"/>
+    <line x1="5" y1="31" x2="31" y2="5" stroke={color} strokeWidth="1.8" strokeLinecap="round"/>
+    <line x1="31" y1="31" x2="5" y2="5" stroke={color} strokeWidth="1.8" strokeLinecap="round"/>
+    <ellipse cx="18" cy="18" rx="3" ry="4" fill="#4a3000" stroke={color} strokeWidth="0.7"/>
+    <circle cx="18" cy="18" r="1.4" fill={color}/>
+    {[0,90,180,270].map(a=>(
+      <circle key={a} cx={18+14*Math.cos(a*Math.PI/180)} cy={18+14*Math.sin(a*Math.PI/180)} r="1.8" fill={color} opacity="0.55"/>
+    ))}
+  </svg>
+);
+
+const Droplet = ({ size = 18, color = "#00AADD", opacity = 0.7 }) => (
+  <svg width={size} height={size * 1.3} viewBox="0 0 18 24" fill="none" style={{ opacity }}>
+    <path d="M9 1 Q16 10 16 15 A7 7 0 0 1 2 15 Q2 10 9 1 Z" fill={color} opacity="0.7"/>
+    <path d="M9 6 Q13 12 13 15 A4 4 0 0 1 5 15 Q5 12 9 6 Z" fill="rgba(255,255,255,0.25)"/>
+  </svg>
+);
+
+const Wisteria = ({ size = 16, opacity = 0.4 }) => (
+  <svg width={size} height={size} viewBox="0 0 20 20" fill="none" style={{ opacity }}>
+    <ellipse cx="10" cy="6" rx="2.5" ry="4" fill="#9966CC"/>
+    <ellipse cx="5.5" cy="9" rx="2.5" ry="3.5" fill="#AA77DD" transform="rotate(-25 5.5 9)"/>
+    <ellipse cx="14.5" cy="9" rx="2.5" ry="3.5" fill="#AA77DD" transform="rotate(25 14.5 9)"/>
+    <ellipse cx="7.5" cy="15" rx="2" ry="3" fill="#BB88EE" transform="rotate(-15 7.5 15)"/>
+    <ellipse cx="12.5" cy="15" rx="2" ry="3" fill="#BB88EE" transform="rotate(15 12.5 15)"/>
+  </svg>
+);
+
+/* ═══════════════════════════════════════
+   THEME SWITCHER BUTTON
+═══════════════════════════════════════ */
+const ThemeSwitcher = ({ current, onChange }) => {
+  const other = current === "zenitsu" ? THEMES.tanjiro : THEMES.zenitsu;
+  const cur = THEMES[current];
+  return (
+    <div style={{ display:"flex", alignItems:"center", gap:"8px",
+      background:"#0a0a12", border:`1px solid ${cur.primary}33`,
+      borderRadius:"40px", padding:"4px", boxShadow:`0 0 20px ${cur.primary}22` }}>
+      <div style={{ padding:"7px 14px", borderRadius:"36px",
+        background:cur.switchBg, color:cur.switchText,
+        fontFamily:"'Share Tech Mono',monospace", fontSize:"10px",
+        fontWeight:700, letterSpacing:"1.5px",
+        boxShadow:`0 0 12px ${cur.primary}55`,
+        display:"flex", alignItems:"center", gap:"6px" }}>
+        {current === "zenitsu"
+          ? <Bolt size={12} color={cur.switchText}/>
+          : <Droplet size={10} color={cur.switchText} opacity={1}/>}
+        {cur.nameJP} {cur.name}
+      </div>
+      <button onClick={() => onChange(other.id)}
+        className="sw-other"
+        style={{ padding:"7px 14px", borderRadius:"36px",
+          background:"transparent", color:other.primary,
+          fontFamily:"'Share Tech Mono',monospace", fontSize:"10px",
+          fontWeight:600, letterSpacing:"1.5px",
+          border:`1px solid ${other.primary}44`,
+          cursor:"pointer", transition:"all .2s",
+          display:"flex", alignItems:"center", gap:"6px" }}>
+        {other.id === "zenitsu"
+          ? <Bolt size={12} color={other.primary}/>
+          : <Droplet size={10} color={other.primary} opacity={1}/>}
+        {other.nameJP} {other.name}
+      </button>
+    </div>
+  );
+};
+
+/* ═══════════════════════════════════════
+   MAIN APPLICATION
+═══════════════════════════════════════ */
 export default function App() {
   const [transactions, setTransactions] = useState([]);
   const [localTransactions, setLocalTransactions] = useState(getStoredLocalTransactions);
@@ -218,9 +465,16 @@ export default function App() {
   const [lastSynced, setLastSynced] = useState(null);
 
   // Upgrade Feature States
-  const [theme, setTheme] = useState(getStoredTheme);
+  const [theme, setTheme] = useState(() => {
+    try {
+      const stored = localStorage.getItem(THEME_KEY);
+      return stored === "tanjiro" ? "tanjiro" : "zenitsu";
+    } catch {
+      return "zenitsu";
+    }
+  });
   const [categoryBudgets, setCategoryBudgets] = useState(getStoredCategoryBudgets);
-  const [editingCategory, setEditingCategory] = useState(null); // name of category currently editing budget
+  const [editingCategory, setEditingCategory] = useState(null);
   const [editingBudgetVal, setEditingBudgetVal] = useState("");
 
   // Sandbox Simulator Form States
@@ -230,10 +484,12 @@ export default function App() {
   const [newExpenseDate, setNewExpenseDate] = useState(() => new Date().toISOString().split("T")[0]);
   const [customCategory, setCustomCategory] = useState("");
   const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [switching, setSwitching] = useState(false);
+
+  const T = THEMES[theme];
 
   // Sync state effects
   useEffect(() => {
-    document.documentElement.setAttribute("data-theme", theme);
     localStorage.setItem(THEME_KEY, theme);
   }, [theme]);
 
@@ -388,25 +644,14 @@ export default function App() {
 
   const totalSpent = visibleTransactions.reduce((sum, tx) => sum + tx.amount, 0);
   const monthlyTotal = monthlyTransactions.reduce((sum, tx) => sum + tx.amount, 0);
-  const averageSpend =
-    visibleTransactions.length > 0 ? totalSpent / visibleTransactions.length : 0;
-  const topCategory = groupedCategories[0];
   const highestDay = dailySpend.reduce(
     (best, day) => (day.total > best.total ? day : best),
     { total: 0, date: null },
   );
   const maxDailySpend = Math.max(...dailySpend.map((day) => day.total), 1);
   const maxMonthlySpend = Math.max(...monthlySpend.map((month) => month.total), 1);
-  const activeMonthIndex = monthlySpend.findIndex((month) => month.key === activeMonth);
-  const previousMonth = activeMonthIndex > 0 ? monthlySpend[activeMonthIndex - 1] : null;
-  const monthChange = previousMonth ? monthlyTotal - previousMonth.total : 0;
-  const monthChangePercent =
-    previousMonth && previousMonth.total > 0
-      ? (monthChange / previousMonth.total) * 100
-      : 0;
   const currentMonthLabel =
     monthOptions.find((month) => month.value === activeMonth)?.label || "Select a month";
-  const donutGradient = buildDonutGradient(groupedCategories, totalSpent);
   const budgetUsed = monthlyBudget > 0 ? (monthlyTotal / monthlyBudget) * 100 : 0;
   const budgetRemaining = monthlyBudget - monthlyTotal;
 
@@ -449,10 +694,10 @@ export default function App() {
     setMonthlyBudget(nextBudget);
   };
 
-  const toggle = (name) => {
+  const toggle = (id) => {
     setExpanded((prev) => ({
       ...prev,
-      [name]: !prev[name],
+      [id]: !prev[id],
     }));
   };
 
@@ -491,7 +736,6 @@ export default function App() {
         throw new Error("Sheet is empty! Please add some transactions first.");
       }
 
-      // Quick validation of the first item keys
       const sample = data[0];
       const keys = Object.keys(sample).map(k => k.toLowerCase());
 
@@ -505,7 +749,6 @@ export default function App() {
         );
       }
 
-      // Success! Update state and localStorage
       setCustomSheetId(extractedId);
       setCustomSheetName(tabName);
       setIsCustomActive(true);
@@ -516,7 +759,6 @@ export default function App() {
 
       setConnectorStatus("success");
 
-      // Auto-close drawer after a short delay
       setTimeout(() => {
         setIsConnectorOpen(false);
         setConnectorStatus("idle");
@@ -569,7 +811,6 @@ export default function App() {
 
     setLocalTransactions((prev) => [newTx, ...prev]);
 
-    // Reset form fields
     setNewExpenseName("");
     setNewExpenseAmount("");
     setCustomCategory("");
@@ -602,692 +843,1688 @@ export default function App() {
     document.body.removeChild(link);
   };
 
-  const getBudgetMeterStyle = (used) => {
-    if (used >= 100) {
-      return {
-        width: "100%",
-        background: "linear-gradient(90deg, #fb7185, #fb7185)",
-        boxShadow: "0 0 12px rgba(251, 113, 133, 0.6)",
-      };
-    }
-    if (used >= 75) {
-      return {
-        width: `${used}%`,
-        background: "linear-gradient(90deg, #f8d66d, #fb7185)",
-        boxShadow: "0 0 8px rgba(248, 214, 109, 0.3)",
-      };
-    }
-    return {
-      width: `${used}%`,
-      background: "linear-gradient(90deg, #5eead4, #f8d66d)",
-    };
+  const handleSwitch = (id) => {
+    setSwitching(true);
+    setTimeout(() => { setTheme(id); setSwitching(false); }, 320);
   };
 
-  return (
-    <main className="app-shell">
-      <div className="ambient ambient-one" />
-      <div className="ambient ambient-two" />
+  const bgKunais = [
+    { left:"4%",  top:"18%", rotate:30,  size:26, op:0.06 },
+    { left:"92%", top:"12%", rotate:-45, size:22, op:0.05 },
+    { left:"88%", top:"55%", rotate:60,  size:20, op:0.06 },
+    { left:"6%",  top:"70%", rotate:-20, size:24, op:0.05 },
+    { left:"50%", top:"6%",  rotate:15,  size:18, op:0.04 },
+  ];
 
-      <section className="dashboard">
-        <header className="hero-panel">
-          <div>
-            <p className="eyebrow">Personal finance</p>
-            <h1>{currentMonthLabel}</h1>
-            <p className="hero-copy">
-              Live spending intelligence {isCustomActive ? "from your connected sheet" : "from your expense sheet"}.
-            </p>
+  const [monthWord, yearWord] = useMemo(() => {
+    if (!currentMonthLabel || currentMonthLabel === "Select a month") {
+      return ["SELECT", "MONTH"];
+    }
+    const parts = currentMonthLabel.split(" ");
+    return [parts[0].toUpperCase(), parts[1] || ""];
+  }, [currentMonthLabel]);
+
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700;900&family=Noto+Serif+JP:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap');
+        *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+        @keyframes slideIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeSwitch{0%{opacity:0;transform:scale(.97)}100%{opacity:1;transform:scale(1)}}
+        @keyframes flashOut{0%{opacity:1}50%{opacity:0}100%{opacity:1}}
+        @keyframes pulsePrimary{
+          0%,100%{filter:drop-shadow(0 0 6px var(--pc)) drop-shadow(0 0 16px var(--pc2));opacity:.85}
+          50%{filter:drop-shadow(0 0 18px var(--pc)) drop-shadow(0 0 38px var(--pc2));opacity:1}
+        }
+        @keyframes katanaDraw{
+          0%{clip-path:inset(0 100% 0 0)}
+          100%{clip-path:inset(0 0% 0 0)}
+        }
+        @keyframes floatY{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+        @keyframes wisteriaDrift{
+          0%,100%{transform:translateY(0) rotate(0deg);opacity:.3}
+          50%{transform:translateY(-12px) rotate(10deg);opacity:.55}
+        }
+        @keyframes waterFlow{
+          0%{transform:translateX(0)}
+          100%{transform:translateX(-50%)}
+        }
+        @keyframes thunderFlash{
+          0%,80%,100%{opacity:0}
+          82%{opacity:.9}
+          85%{opacity:.05}
+          87%{opacity:.7}
+          90%{opacity:0}
+        }
+        @keyframes haoriStripe{0%,100%{transform:scaleX(1)}50%{transform:scaleX(1.01)}}
+        @keyframes scanline{0%{top:-2px}100%{top:100vh}}
+        @keyframes bladeShine{0%{left:-100%}40%{left:120%}100%{left:120%}}
+        @keyframes dropletFall{
+          0%{transform:translateY(-20px);opacity:0}
+          10%{opacity:.8}
+          90%{opacity:.6}
+          100%{transform:translateY(100vh);opacity:0}
+        }
+        .ds-card:hover{background:var(--raised-h)!important;border-color:var(--pc-c)!important}
+        .ds-card:hover .kunai-wm{opacity:.14!important}
+        .ds-card:hover .card-shine{animation:bladeShine 1.1s ease forwards!important}
+        .sw-other:hover{background:var(--sw-other-bg)!important;color:#0a0a14!important}
+        ::-webkit-scrollbar{width:3px}
+        ::-webkit-scrollbar-thumb{border-radius:4px}
+      `}</style>
+
+      <div style={{
+        "--pc": T.primary, "--pc2": T.primary+"66",
+        "--raised-h": T.raised, "--pc-c": T.primary+"55",
+        "--sw-other-bg": T.primary,
+        minHeight:"100vh", background:T.bg,
+        display:"flex", justifyContent:"center",
+        fontFamily:"'Rajdhani',sans-serif",
+        position:"relative", overflowX:"hidden", overflowY:"auto",
+        transition:"background .5s ease",
+        opacity: switching ? 0 : 1,
+        animation: switching ? "none" : "fadeSwitch .4s ease",
+      }}>
+
+        {/* ═══ BACKGROUND ═══ */}
+        <div style={{ position:"fixed", inset:0, pointerEvents:"none", zIndex:0, overflow:"hidden" }}>
+
+          {/* Haori stripe borders */}
+          {[0,"calc(100% - 6px)"].map((top,i) => (
+            <div key={i} style={{ position:"absolute", top, left:0, right:0, height:"6px",
+              background:`repeating-linear-gradient(${T.haoriAngle},${T.haoriColor1} 0,${T.haoriColor1} 14px,${T.haoriColor2} 14px,${T.haoriColor2} 28px)`,
+              opacity: i===0 ? 0.6 : 0.35, animation:"haoriStripe 5s ease-in-out infinite",
+              transition:"background .5s" }}/>
+          ))}
+
+          {/* Giant kanji bg */}
+          <div style={{ position:"absolute", top:"50%", left:"50%",
+            transform:"translate(-50%,-50%)",
+            fontFamily:"'Noto Serif JP',serif",
+            fontSize:"320px", color:T.primary,
+            opacity:0.04, lineHeight:1, userSelect:"none",
+            animation:"pulsePrimary 5s ease-in-out infinite",
+            transition:"color .5s" }}>
+            {T.kanji}
+          </div>
+
+          {/* BG kunai */}
+          {bgKunais.map((k,i) => (
+            <div key={i} style={{ position:"absolute", left:k.left, top:k.top,
+              opacity:k.op, animation:`floatY ${3+i}s ${i*.5}s ease-in-out infinite` }}>
+              <Kunai color={T.primary+"55"} size={k.size} rotate={k.rotate}/>
+            </div>
+          ))}
+
+          {/* ZENITSU: bolt flashes */}
+          {theme === "zenitsu" && [{ left:"14%", delay:"3s" },{ left:"82%", delay:"7.5s" }].map((b,i)=>(
+            <div key={i} style={{ position:"absolute", left:b.left, top:0, opacity:0,
+              animation:`thunderFlash 9s ${b.delay} ease-in-out infinite` }}>
+              <Bolt size={42} color="#FFD700" glow/>
+            </div>
+          ))}
+
+          {/* TANJIRO: falling droplets */}
+          {theme === "tanjiro" && Array.from({length:16},(_,i)=>i).map(i=>(
+            <div key={i} style={{ position:"absolute",
+              left:`${(i*7.3+Math.sin(i)*12)%100}%`, top:0,
+              animation:`dropletFall ${2+i*.4}s ${i*.35}s linear infinite`,
+              opacity:0 }}>
+              <Droplet size={10+(i%3)*4} color="#00AADD" opacity={0.15+i%3*.08}/>
+            </div>
+          ))}
+
+          {/* Wisteria */}
+          {[{l:"8%",t:"25%",d:"0s"},{l:"86%",t:"32%",d:"1.4s"},{l:"45%",t:"7%",d:".7s"},{l:"72%",t:"78%",d:"2.1s"},{l:"18%",t:"85%",d:"1.8s"}]
+            .map((w,i)=>(
+            <div key={i} style={{ position:"absolute", left:w.l, top:w.t,
+              animation:`wisteriaDrift ${4+i}s ${w.d} ease-in-out infinite` }}>
+              <Wisteria size={16} opacity={0.28}/>
+            </div>
+          ))}
+
+          {/* TANJIRO: scrolling water waves */}
+          {theme === "tanjiro" && (
+            <>
+              <div style={{ position:"absolute", bottom:"120px", left:0, width:"200%",
+                animation:"waterFlow 8s linear infinite", opacity:0.08 }}>
+                <WaterWave color="#00AADD" width={1000} opacity={1}/>
+              </div>
+              <div style={{ position:"absolute", bottom:"80px", left:0, width:"200%",
+                animation:"waterFlow 12s linear infinite reverse", opacity:0.06 }}>
+                <WaterWave color="#00CCFF" width={1000} opacity={1}/>
+              </div>
+            </>
+          )}
+
+          {/* Scanline */}
+          <div style={{ position:"absolute", left:0, right:0, height:"2px",
+            background:`linear-gradient(90deg,transparent,${T.primary}06,transparent)`,
+            animation:"scanline 10s linear infinite" }}/>
+
+          {/* Atmosphere */}
+          <div style={{ position:"absolute", top:"-80px", left:"50%", transform:"translateX(-50%)",
+            width:"600px", height:"400px", borderRadius:"50%",
+            background:`radial-gradient(ellipse,${T.primary}10,transparent 65%)`,
+            transition:"background .5s" }}/>
+        </div>
+
+        {/* ══════════ MAIN ══════════ */}
+        <div style={{ width:"100%", maxWidth:"480px", padding:"28px 18px 80px",
+          position:"relative", zIndex:1 }}>
+
+          {/* ── THEME SWITCHER ── */}
+          <div style={{ display:"flex", justifyContent:"center",
+            marginBottom:"20px", animation:"slideIn .4s ease both" }}>
+            <ThemeSwitcher current={theme} onChange={handleSwitch}/>
+          </div>
+
+          {/* ── CONNECTION ROW ── */}
+          <div style={{ display: "flex", gap: "8px", marginBottom: "16px", flexWrap: "wrap", animation: "slideIn .45s .02s ease both" }}>
+            {/* Connection Pill */}
             <button
-              className="connection-status-pill"
               onClick={() => setIsConnectorOpen(true)}
               title="Click to manage connection settings"
               type="button"
+              style={{
+                flex: 1,
+                background: T.panel,
+                border: `1px solid ${T.primary}22`,
+                borderRadius: "12px",
+                padding: "8px 12px",
+                cursor: "pointer",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                color: "#d0cce8",
+                fontFamily: "'Share Tech Mono',monospace",
+                fontSize: "10px",
+                letterSpacing: "1px",
+                transition: "all 0.3s ease",
+                textAlign: "left"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = T.primary;
+                e.currentTarget.style.boxShadow = `0 0 10px ${T.primary}22`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = `${T.primary}22`;
+                e.currentTarget.style.boxShadow = "none";
+              }}
             >
-              <span className={`status-dot ${status === "loading" ? "syncing" : status === "error" ? "error" : isCustomActive ? "connected" : "demo"}`} />
-              <span className="status-label">
-                {isCustomActive ? `Connected: ${customSheetName}` : "Demo Mode"}
-              </span>
-              <span className="status-meta">
-                {status === "loading" && " • Syncing..."}
-                {status === "error" && " • Sync Error"}
-                {status === "ready" && lastSynced && ` • Synced ${lastSynced.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`}
-              </span>
+              <span style={{
+                width: "7px",
+                height: "7px",
+                borderRadius: "50%",
+                background: status === "loading" ? T.secondary : status === "error" ? "#ff4444" : isCustomActive ? T.accent : T.primary,
+                boxShadow: `0 0 8px ${status === "loading" ? T.secondary : status === "error" ? "#ff4444" : isCustomActive ? T.accent : T.primary}`,
+                display: "inline-block",
+                animation: status === "loading" ? "pulsePrimary 1.5s infinite" : "none"
+              }} />
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <span style={{ color: T.primary, fontWeight: 700, fontSize: "8px" }}>
+                  LEDGER SYNC {status === "loading" && " (SYNCING...)"}
+                </span>
+                <span>{isCustomActive ? `${customSheetName}` : "Demo Sheet Mode"}</span>
+                {status === "ready" && lastSynced && (
+                  <span style={{ fontSize: "7px", color: T.dim, marginTop: "1px" }}>
+                    Synced {lastSynced.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                )}
+              </div>
             </button>
-          </div>
 
-          <div className="hero-actions">
+            {/* Connect Button */}
             <button
-              className="btn-theme-toggle"
-              onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-              type="button"
-              title={`Switch to ${theme === "dark" ? "Light" : "Dark"} Mode`}
-            >
-              {theme === "dark" ? "☀️" : "🌙"}
-            </button>
-
-            <button
-              className={`btn-connect-sheet ${isCustomActive ? "is-active" : ""}`}
               onClick={() => setIsConnectorOpen(true)}
               type="button"
+              style={{
+                background: T.switchBg,
+                color: T.switchText,
+                border: "none",
+                borderRadius: "12px",
+                padding: "8px 16px",
+                cursor: "pointer",
+                fontFamily: "'Share Tech Mono',monospace",
+                fontSize: "10px",
+                fontWeight: 700,
+                letterSpacing: "1px",
+                boxShadow: `0 0 12px ${T.primary}44`,
+                transition: "all 0.3s ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.filter = "brightness(1.1)";
+                e.currentTarget.style.boxShadow = `0 0 18px ${T.primary}66`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.filter = "none";
+                e.currentTarget.style.boxShadow = `0 0 12px ${T.primary}44`;
+              }}
             >
-              {isCustomActive ? "⚙️ Manage Sheet" : "✨ Connect Sheet"}
+              ⚔️ SYNC CENTER
             </button>
+          </div>
 
-            <label className="month-control">
-              <span>Month</span>
-              <select
-                value={activeMonth}
-                onChange={(event) => {
-                  setSelectedMonth(event.target.value);
-                  resetFilters();
-                }}
-                disabled={monthOptions.length === 0}
-              >
-                {monthOptions.map((month) => (
-                  <option key={month.value} value={month.value}>
-                    {month.label}
-                  </option>
+          {/* ── HEADER ── */}
+          <div style={{ marginBottom:"24px", animation:"slideIn .55s .04s ease both" }}>
+
+            {/* Top badge row */}
+            <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"16px" }}>
+              <div style={{ width:"36px", height:"36px", borderRadius:"9px",
+                background:T.switchBg,
+                display:"flex", alignItems:"center", justifyContent:"center",
+                boxShadow:`0 0 18px ${T.primary}88`, flexShrink:0,
+                transition:"background .5s" }}>
+                {theme==="zenitsu"
+                  ? <Bolt size={17} color="#0a0a14"/>
+                  : <Droplet size={16} color="#fff" opacity={1}/>}
+              </div>
+              <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:"9px",
+                letterSpacing:"2.5px", color:T.primary,
+                padding:"3px 12px", border:`1px solid ${T.primary}44`,
+                borderRadius:"20px", background:`${T.primary}10`,
+                transition:"color .5s, border-color .5s, background .5s" }}>
+                {T.breathingEN}
+              </span>
+              <div style={{ marginLeft:"auto",
+                animation:"pulsePrimary 3s ease-in-out infinite",
+                transition:"color .5s" }}>
+                <CorpsMark size={30} color={T.primary}/>
+              </div>
+            </div>
+
+            {/* ── HERO WEAPON PANEL ── */}
+            <div style={{ position:"relative", background:T.panel,
+              border:`1px solid ${T.primary}22`, borderRadius:"16px",
+              padding:"22px 18px 18px", marginBottom:"16px",
+              overflow:"hidden", transition:"background .5s, border-color .5s" }}>
+
+              {/* Top glow line */}
+              <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
+                background:`linear-gradient(90deg,transparent,${T.primary},transparent)`,
+                transition:"background .5s" }}/>
+
+              {/* Haori pattern bg */}
+              <div style={{ position:"absolute", inset:0,
+                background:`repeating-linear-gradient(${T.haoriAngle},${T.primary}07 0,${T.primary}07 16px,transparent 16px,transparent 32px)`,
+                transition:"background .5s" }}/>
+
+              {/* Flanking kunai */}
+              <div style={{ position:"absolute", left:"8px", top:"50%",
+                transform:"translateY(-50%) rotate(90deg)",
+                animation:"floatY 3s ease-in-out infinite" }}>
+                <Kunai color={T.primary} size={26} rotate={0}/>
+              </div>
+              <div style={{ position:"absolute", right:"8px", top:"50%",
+                transform:"translateY(-50%) rotate(-90deg)",
+                animation:"floatY 3.5s .4s ease-in-out infinite" }}>
+                <Kunai color={T.secondary} size={26} rotate={0}/>
+              </div>
+
+              {/* Centre */}
+              <div style={{ textAlign:"center", position:"relative", zIndex:1, padding:"0 44px" }}>
+                <p style={{ margin:"0 0 8px", fontFamily:"'Noto Serif JP',serif",
+                  fontSize:"11px", color:`${T.primary}66`, letterSpacing:"5px",
+                  transition:"color .5s" }}>
+                  鬼殺隊 · {T.breathing}
+                </p>
+
+                {/* MAIN BLADE */}
+                <div style={{ display:"flex", justifyContent:"center", marginBottom:"10px",
+                  animation:"katanaDraw 1.2s .2s ease-out both" }}>
+                  {theme === "zenitsu"
+                    ? <Katana width={230} color={T.primary} secondary={T.secondary} glowing={true}/>
+                    : <TanjiroKatana width={230} glowing={true}/>}
+                </div>
+
+                {/* Dynamic character name + month */}
+                <h1 style={{ margin:"0 0 4px", fontFamily:"'Cinzel',serif",
+                  fontSize:"46px", fontWeight:900, lineHeight:1, letterSpacing:"-0.5px" }}>
+                  <span style={{ color:T.primary,
+                    textShadow:`0 0 24px ${T.primary}aa, 0 0 50px ${T.primary}55`,
+                    transition:"color .5s, text-shadow .5s" }}>
+                    {monthWord}
+                  </span>
+                  <span style={{ color:T.muted, transition:"color .5s" }}> {yearWord}</span>
+                </h1>
+
+                <p style={{ margin:"4px 0 4px", fontFamily:"'Share Tech Mono',monospace",
+                  fontSize:"9px", color:T.dim, letterSpacing:"3px", textTransform:"uppercase",
+                  transition:"color .5s" }}>
+                  {T.nameJP} · {T.name} · PERSONAL LEDGER
+                </p>
+
+                <p style={{ margin:"0 0 8px", fontFamily:"'Noto Serif JP',serif",
+                  fontSize:"12px", color:`${T.primary}44`, letterSpacing:"4px",
+                  transition:"color .5s" }}>
+                  {T.form}
+                </p>
+
+                {/* Interactive Month Selector */}
+                <div style={{ display: "flex", justifyContent: "center", marginTop: "12px", marginBottom: "8px" }}>
+                  <label style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "4px" }}>
+                    <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "8px", color: `${T.primary}66`, letterSpacing: "1px" }}>SELECT ERA / MONTH</span>
+                    <select
+                      value={activeMonth}
+                      onChange={(e) => {
+                        setSelectedMonth(e.target.value);
+                        resetFilters();
+                      }}
+                      disabled={monthOptions.length === 0}
+                      style={{
+                        background: T.raised,
+                        color: T.primary,
+                        border: `1px solid ${T.primary}33`,
+                        borderRadius: "8px",
+                        padding: "4px 10px",
+                        fontFamily: "'Share Tech Mono',monospace",
+                        fontSize: "10px",
+                        letterSpacing: "1.5px",
+                        cursor: "pointer",
+                        outline: "none",
+                        transition: "all 0.3s",
+                        boxShadow: `0 0 10px ${T.primary}11`
+                      }}
+                    >
+                      {monthOptions.map((month) => (
+                        <option key={month.value} value={month.value} style={{ background: T.raised, color: "#fff" }}>
+                          {month.label.toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                {/* Second smaller blade */}
+                <div style={{ display:"flex", justifyContent:"center", opacity:0.4,
+                  animation:"katanaDraw 1.4s .7s ease-out both" }}>
+                  {theme === "zenitsu"
+                    ? <Katana width={150} color={T.secondary} secondary={T.primary} glowing={false}/>
+                    : <TanjiroKatana width={150} glowing={false}/>}
+                </div>
+
+                {/* Water waves for Tanjiro */}
+                {theme === "tanjiro" && (
+                  <div style={{ marginTop:"8px" }}>
+                    <WaterWave color={T.primary} width={210} opacity={0.4}/>
+                  </div>
+                )}
+
+                {/* Quote */}
+                <p style={{ margin:"10px 0 0", fontFamily:"'Noto Serif JP',serif",
+                  fontSize:"9px", color:`${T.primary}33`, letterSpacing:"1.5px",
+                  fontStyle:"italic", transition:"color .5s" }}>
+                  "{T.quote}"
+                </p>
+              </div>
+            </div>
+
+            {/* Divider */}
+            <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+              <div style={{ flex:1, height:"1px",
+                background:`linear-gradient(90deg,transparent,${T.primary}44)`,
+                transition:"background .5s" }}/>
+              {theme==="zenitsu" ? <Bolt size={12} color={`${T.primary}77`}/> : <Droplet size={10} color={`${T.primary}77`} opacity={0.8}/>}
+              <MiniKatana color={T.primary} size={55}/>
+              {theme==="zenitsu" ? <Bolt size={12} color={`${T.primary}77`}/> : <Droplet size={10} color={`${T.primary}77`} opacity={0.8}/>}
+              <div style={{ flex:1, height:"1px",
+                background:`linear-gradient(90deg,${T.primary}44,transparent)`,
+                transition:"background .5s" }}/>
+            </div>
+          </div>
+
+          {/* ── STATE PANELS ── */}
+          {status === "loading" && (
+            <div style={{
+              background: T.panel,
+              border: `1px solid ${T.primary}44`,
+              borderRadius: "14px",
+              padding: "30px",
+              textAlign: "center",
+              color: T.primary,
+              fontFamily: "'Share Tech Mono',monospace",
+              fontSize: "14px",
+              letterSpacing: "1.5px",
+              boxShadow: `0 0 15px ${T.primary}22`,
+              marginBottom: "20px"
+            }}>
+              <span style={{ display: "inline-block", animation: "pulsePrimary 1.5s infinite", fontSize: "20px", marginBottom: "10px" }}>🌀</span>
+              <div>LOADING FINANCIAL STRIKES...</div>
+            </div>
+          )}
+
+          {status === "error" && (
+            <div style={{
+              background: T.panel,
+              border: "1px solid #ff444466",
+              borderRadius: "14px",
+              padding: "24px 20px",
+              textAlign: "center",
+              color: "#ff4444",
+              boxShadow: "0 0 15px rgba(255, 68, 68, 0.15)",
+              marginBottom: "20px"
+            }}>
+              <strong style={{ fontFamily: "'Cinzel',serif", fontSize: "16px", display: "block", marginBottom: "6px" }}>
+                SYNC ERROR OCCURRED
+              </strong>
+              <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "11px", color: "#d0cce8" }}>
+                {error}
+              </span>
+            </div>
+          )}
+
+          {status === "ready" && (
+            <>
+              {/* ── SUMMARY CARDS ── */}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr",
+                gap:"10px", marginBottom:"20px", animation:"slideIn .55s .1s ease both" }}>
+                {[
+                  { label:"TOTAL SPENT",  value:fmt(totalSpent), accent:T.primary },
+                  { label:"FORMS USED",   value:groupedCategories.length, accent:T.secondary },
+                  { label:"STRIKES",      value:visibleTransactions.length, accent:T.accent },
+                ].map(({label,value,accent})=>(
+                  <div key={label} style={{ position:"relative", background:T.panel,
+                    border:`1px solid ${accent}28`, borderRadius:"14px",
+                    padding:"16px 12px 14px", overflow:"hidden",
+                    transition:"background .5s, border-color .5s" }}>
+                    <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
+                      background:accent, opacity:.7 }}/>
+                    <div style={{ position:"absolute", top:0, left:0, right:0, height:"60%",
+                      background:`radial-gradient(ellipse at top,${accent}18,transparent 70%)` }}/>
+                    <div style={{ position:"absolute", bottom:0, left:0, right:0, height:"5px",
+                      background:`repeating-linear-gradient(${T.haoriAngle},${accent}44 0,${accent}44 8px,transparent 8px,transparent 16px)` }}/>
+                    <div style={{ position:"absolute", bottom:"8px", right:"6px", opacity:.06 }}>
+                      <MiniKatana color={accent} size={48}/>
+                    </div>
+                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontWeight:700,
+                      fontSize:"20px", color:accent,
+                      textShadow:`0 0 16px ${accent}77`,
+                      display:"block", marginBottom:"5px", position:"relative", zIndex:1,
+                      transition:"color .5s, text-shadow .5s" }}>
+                      {value}
+                    </div>
+                    <div style={{ fontSize:"8px", color:T.dim,
+                      fontFamily:"'Share Tech Mono',monospace",
+                      letterSpacing:"1.5px", textTransform:"uppercase",
+                      position:"relative", zIndex:1, transition:"color .5s" }}>
+                      {label}
+                    </div>
+                  </div>
                 ))}
-              </select>
-            </label>
-          </div>
-        </header>
+              </div>
 
-        {status === "loading" && (
-          <div className="state-panel">Loading your expenses...</div>
-        )}
-
-        {status === "error" && (
-          <div className="state-panel state-error">
-            <strong>Could not load dashboard.</strong>
-            <span>{error}</span>
-          </div>
-        )}
-
-        {status === "ready" && (
-          <>
-            <section className="summary-grid" aria-label="Monthly summary">
-              <article className="metric-card metric-primary">
-                <span>Visible spend</span>
-                <strong>{currency.format(totalSpent)}</strong>
-                <small>
-                  {visibleTransactions.length} of {monthlyTransactions.length} transactions
-                </small>
-              </article>
-
-              <article className="metric-card">
-                <span>Average</span>
-                <strong>{currency.format(averageSpend)}</strong>
-                <small>Per visible transaction</small>
-              </article>
-
-              <article className="metric-card">
-                <span>Top category</span>
-                <strong>{topCategory?.name || "None"}</strong>
-                <small>
-                  {topCategory ? currency.format(topCategory.total) : "No spend"}
-                </small>
-              </article>
-            </section>
-
-            <section className="insight-grid" aria-label="Spending insights">
-              <article className={`insight-panel ${budgetRemaining < 0 ? "budget-exceeded" : ""}`}>
-                <div>
-                  <span className="section-label">Budget pulse</span>
-                  <strong className={budgetRemaining < 0 ? "text-crimson" : ""}>
-                    {budgetRemaining < 0
-                      ? `-${currency.format(Math.abs(budgetRemaining))}`
-                      : currency.format(budgetRemaining)}
-                  </strong>
-                  <small className={budgetRemaining < 0 ? "text-crimson-small" : ""}>
-                    {budgetRemaining < 0
-                      ? `${budgetUsed.toFixed(0)}% used (Overspent!)`
-                      : `${budgetUsed.toFixed(0)}% of monthly budget used`}
-                  </small>
-                </div>
-                <div className="budget-meter" aria-hidden="true">
-                  <span style={getBudgetMeterStyle(budgetUsed)} />
-                </div>
-              </article>
-
-
-              <article className="insight-panel">
-                <span className="section-label">Highest day</span>
-                <strong>
-                  {highestDay.date ? dayFormatter.format(highestDay.date) : "None"}
-                </strong>
-                <small>{currency.format(highestDay.total)}</small>
-              </article>
-
-              <article className="insight-panel">
-                <span className="section-label">Daily Allowance</span>
-                <strong>{currency.format(dailyAllowanceRemaining)}</strong>
-                <small>For remaining {daysRemaining} days</small>
-              </article>
-            </section>
-
-            <section className="analytics-grid" aria-label="Visual analytics">
-              <article className="chart-panel">
-                <div className="section-heading">
+              {/* ── INSIGHTS GRID ── */}
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1.1fr 0.9fr",
+                gap:"10px", marginBottom:"20px", animation:"slideIn .55s .12s ease both" }}>
+                
+                {/* Budget Pulse */}
+                <div style={{ position:"relative", background:T.panel,
+                  border:`1px solid ${budgetRemaining < 0 ? "#ff4444" : T.primary}28`, borderRadius:"14px",
+                  padding:"12px 10px", overflow:"hidden", display: "flex", flexDirection: "column", justifyContent: "space-between",
+                  transition:"background .5s, border-color .5s" }}>
+                  <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
+                    background: budgetRemaining < 0 ? "#ff4444" : T.primary, opacity:.7 }}/>
                   <div>
-                    <span className="section-label">Category mix</span>
-                    <h2>Where the money went</h2>
+                    <span style={{ fontSize:"8px", color:T.dim, fontFamily:"'Share Tech Mono',monospace", letterSpacing:"1px", textTransform:"uppercase" }}>
+                      BUDGET PULSE
+                    </span>
+                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontWeight:700,
+                      fontSize:"15px", color: budgetRemaining < 0 ? "#ff4444" : T.primary,
+                      textShadow:`0 0 12px ${budgetRemaining < 0 ? "#ff4444" : T.primary}55`,
+                      marginTop: "2px", transition:"color .5s" }}>
+                      {budgetRemaining < 0 ? `-${fmt(Math.abs(budgetRemaining))}` : fmt(budgetRemaining)}
+                    </div>
+                  </div>
+                  <div style={{ fontSize:"8px", color: T.muted, fontFamily:"'Share Tech Mono',monospace", marginTop: "6px" }}>
+                    {budgetRemaining < 0 ? "Exceeded!" : `${budgetUsed.toFixed(0)}% Used`}
                   </div>
                 </div>
 
-                <div className="donut-wrap">
-                  <div
-                    className="donut-chart"
-                    style={{ background: donutGradient, cursor: "pointer" }}
-                    onClick={() => setSelectedCategory("all")}
-                    title="Click to reset category filter"
-                  >
-                    <span>{groupedCategories.length}</span>
-                    <small>categories</small>
-                  </div>
-
-                  <div className="legend-list">
-                    {groupedCategories.slice(0, 6).map((category, index) => (
-                      <button
-                        className={`legend-row-btn ${selectedCategory === category.name ? "is-active" : ""}`}
-                        key={category.name}
-                        onClick={() => {
-                          setSelectedCategory(
-                            selectedCategory === category.name ? "all" : category.name
-                          );
-                        }}
-                        type="button"
-                      >
-                        <span
-                          className="category-dot"
-                          style={{ backgroundColor: palette[index % palette.length] }}
-                        />
-                        <strong>{category.name}</strong>
-                        <small>{currency.format(category.total)}</small>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </article>
-
-              <article className="chart-panel">
-                <div className="section-heading">
+                {/* Highest Day */}
+                <div style={{ position:"relative", background:T.panel,
+                  border:`1px solid ${T.secondary}28`, borderRadius:"14px",
+                  padding:"12px 10px", overflow:"hidden", display: "flex", flexDirection: "column", justifyContent: "space-between",
+                  transition:"background .5s, border-color .5s" }}>
+                  <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
+                    background:T.secondary, opacity:.7 }}/>
                   <div>
-                    <span className="section-label">Daily rhythm</span>
-                    <h2>Spend by day</h2>
+                    <span style={{ fontSize:"8px", color:T.dim, fontFamily:"'Share Tech Mono',monospace", letterSpacing:"1px", textTransform:"uppercase" }}>
+                      HIGHEST STRIKE
+                    </span>
+                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontWeight:700,
+                      fontSize:"14px", color:T.secondary,
+                      textShadow:`0 0 12px ${T.secondary}55`,
+                      marginTop: "2px", transition:"color .5s" }}>
+                      {highestDay.date ? dayFormatter.format(highestDay.date) : "None"}
+                    </div>
+                  </div>
+                  <div style={{ fontSize:"8px", color: T.muted, fontFamily:"'Share Tech Mono',monospace", marginTop: "6px" }}>
+                    {highestDay.total > 0 ? `${fmt(highestDay.total)} Spent` : "No strikes"}
                   </div>
                 </div>
 
-                <div className="bar-chart">
-                  {dailySpend.map((day) => (
-                    <div className="bar-item" key={day.date.toISOString()}>
-                      <span
-                        className="bar-fill"
-                        style={{ height: `${Math.max((day.total / maxDailySpend) * 100, 5)}%` }}
-                        title={`${dayFormatter.format(day.date)}: ${currency.format(day.total)}`}
-                      />
-                      <small>{day.date.getDate()}</small>
+                {/* Daily Allowance */}
+                <div style={{ position:"relative", background:T.panel,
+                  border:`1px solid ${T.accent}28`, borderRadius:"14px",
+                  padding:"12px 10px", overflow:"hidden", display: "flex", flexDirection: "column", justifyContent: "space-between",
+                  transition:"background .5s, border-color .5s" }}>
+                  <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
+                    background:T.accent, opacity:.7 }}/>
+                  <div>
+                    <span style={{ fontSize:"8px", color:T.dim, fontFamily:"'Share Tech Mono',monospace", letterSpacing:"1px", textTransform:"uppercase" }}>
+                      ALLOWANCE
+                    </span>
+                    <div style={{ fontFamily:"'Share Tech Mono',monospace", fontWeight:700,
+                      fontSize:"14px", color:T.accent,
+                      textShadow:`0 0 12px ${T.accent}55`,
+                      marginTop: "2px", transition:"color .5s" }}>
+                      {fmt(dailyAllowanceRemaining)}
+                    </div>
+                  </div>
+                  <div style={{ fontSize:"8px", color: T.muted, fontFamily:"'Share Tech Mono',monospace", marginTop: "6px" }}>
+                    {daysRemaining} Days Left
+                  </div>
+                </div>
+
+              </div>
+
+              {/* ── ALLOCATION BAR ── */}
+              <div style={{ marginBottom:"24px", animation:"slideIn .55s .16s ease both" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px",
+                  alignItems:"center" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                    <MiniKatana color={`${T.primary}77`} size={28}/>
+                    <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:"9px",
+                      letterSpacing:"2px", color:`${T.primary}77`, textTransform:"uppercase",
+                      transition:"color .5s" }}>
+                      ENERGY DISTRIBUTION
+                    </span>
+                  </div>
+                  <span style={{ fontFamily:"'Share Tech Mono',monospace",
+                    fontSize:"9px", color:T.muted, transition:"color .5s" }}>
+                    MAY {yearWord}
+                  </span>
+                </div>
+                <div style={{ display:"flex", height:"10px", borderRadius:"5px",
+                  overflow:"hidden", gap:"2px",
+                  border:`1px solid ${T.primary}20`, background:"#040408",
+                  transition:"border-color .5s" }}>
+                  {groupedCategories.map((c,i)=>(
+                    <div key={c.name} title={`${c.name}: ${fmt(c.total)}`}
+                      style={{ height:"100%", borderRadius:"2px", flexShrink:0,
+                        width:pct(c.total, totalSpent || 1)+"%",
+                        background: T.catColors[i % T.catColors.length],
+                        boxShadow:`0 0 8px ${T.catColors[i % T.catColors.length]}66`,
+                        position:"relative", overflow:"hidden",
+                        transition:"background .5s" }}>
+                      <div style={{ position:"absolute", top:0, left:0, right:0, height:"40%",
+                        background:"rgba(255,255,255,0.22)", borderRadius:"2px 2px 0 0" }}/>
                     </div>
                   ))}
                 </div>
-              </article>
-
-              <article className="chart-panel monthly-chart-panel">
-                <div className="section-heading">
-                  <div>
-                    <span className="section-label">Monthly compare</span>
-                    <h2>Spend across months</h2>
-                  </div>
-                </div>
-
-                <div className="monthly-chart">
-                  {monthlySpend.map((month) => {
-                    const isActive = month.key === activeMonth;
-
-                    return (
-                      <button
-                        className={`month-bar-item ${isActive ? "is-active" : ""}`}
-                        key={month.key}
-                        onClick={() => {
-                          setSelectedMonth(month.key);
-                          resetFilters();
-                        }}
-                        title={`${monthFormatter.format(month.date)}: ${currency.format(
-                          month.total,
-                        )}`}
-                        type="button"
-                      >
-                        <span className="month-total">
-                          {currency.format(month.total)}
-                        </span>
-                        <span
-                          className="month-bar-fill"
-                          style={{
-                            height: `${Math.max((month.total / maxMonthlySpend) * 100, 8)}%`,
-                          }}
-                        />
-                        <small>{shortMonthFormatter.format(month.date)}</small>
-                      </button>
-                    );
-                  })}
-                </div>
-              </article>
-            </section>
-
-
-            <section className="filter-panel" aria-label="Expense filters">
-              <label>
-                <span>Search</span>
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Expense, category, date"
-                  type="search"
-                />
-              </label>
-
-              <label>
-                <span>Category</span>
-                <select
-                  value={selectedCategory}
-                  onChange={(event) => {
-                    setSelectedCategory(event.target.value);
-                    setExpanded({});
-                  }}
-                >
-                  <option value="all">All categories</option>
-                  {categoryOptions.map((category) => (
-                    <option key={category} value={category}>
-                      {category}
-                    </option>
+                <div style={{ display:"flex", flexWrap:"wrap", gap:"8px", marginTop:"10px" }}>
+                  {groupedCategories.map((c,i)=>(
+                    <div key={c.name} style={{ display:"flex", alignItems:"center", gap:"5px" }}>
+                      <div style={{ width:"5px", height:"5px", borderRadius:"50%",
+                        background: T.catColors[i % T.catColors.length],
+                        boxShadow:`0 0 5px ${T.catColors[i % T.catColors.length]}88`,
+                        transition:"background .5s" }}/>
+                      <span style={{ fontSize:"9px", color:T.dim,
+                        fontFamily:"'Share Tech Mono',monospace",
+                        transition:"color .5s" }}>
+                        {c.name.split(" ")[0]}
+                      </span>
+                    </div>
                   ))}
-                </select>
-              </label>
-
-              <div className="filter-actions-row">
-                <button onClick={resetFilters} type="button">
-                  Reset
-                </button>
-                <button
-                  className="btn-secondary"
-                  onClick={exportToCSV}
-                  type="button"
-                  disabled={visibleTransactions.length === 0}
-                >
-                  Export CSV
-                </button>
+                </div>
               </div>
-            </section>
 
-            <div className="tools-grid">
-              <section className="budget-editor" aria-label="Monthly budget">
-                <div className="section-heading">
-                  <div>
-                    <span className="section-label">Budget</span>
-                    <h2>Monthly budget</h2>
+              {/* ── FILTERS PANEL ── */}
+              <div style={{
+                background: T.panel,
+                border: `1px solid ${T.primary}22`,
+                borderRadius: "14px",
+                padding: "14px",
+                marginBottom: "20px",
+                animation: "slideIn .55s .18s ease both"
+              }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
+                  <MiniKatana color={`${T.primary}77`} size={28}/>
+                  <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
+                    STRIKE SEARCH & FILTERS
+                  </span>
+                </div>
+                
+                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                  {/* Search input */}
+                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>SEARCH LOGS</span>
+                    <input
+                      value={query}
+                      onChange={(e) => setQuery(e.target.value)}
+                      placeholder="Strike name, category, or date..."
+                      style={{
+                        background: T.raised,
+                        color: "#fff",
+                        border: `1px solid ${T.primary}22`,
+                        borderRadius: "8px",
+                        padding: "8px 12px",
+                        fontFamily: "'Rajdhani',sans-serif",
+                        fontSize: "12px",
+                        outline: "none",
+                        transition: "border-color 0.3s"
+                      }}
+                      onFocus={(e) => e.target.style.borderColor = T.primary}
+                      onBlur={(e) => e.target.style.borderColor = `${T.primary}22`}
+                    />
+                  </div>
+
+                  {/* Category Select & Actions */}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", alignItems: "flex-end" }}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                      <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>BREATHING FORM</span>
+                      <select
+                        value={selectedCategory}
+                        onChange={(e) => {
+                          setSelectedCategory(e.target.value);
+                          setExpanded({});
+                        }}
+                        style={{
+                          background: T.raised,
+                          color: "#fff",
+                          border: `1px solid ${T.primary}22`,
+                          borderRadius: "8px",
+                          padding: "7px 10px",
+                          fontFamily: "'Share Tech Mono',monospace",
+                          fontSize: "11px",
+                          outline: "none",
+                          cursor: "pointer"
+                        }}
+                      >
+                        <option value="all" style={{ background: T.raised }}>ALL FORMS</option>
+                        {categoryOptions.map((cat) => (
+                          <option key={cat} value={cat} style={{ background: T.raised }}>
+                            {cat.toUpperCase()}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Filter buttons */}
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      <button
+                        onClick={resetFilters}
+                        type="button"
+                        style={{
+                          flex: 1,
+                          background: "transparent",
+                          color: T.primary,
+                          border: `1px solid ${T.primary}44`,
+                          borderRadius: "8px",
+                          padding: "7px",
+                          fontFamily: "'Share Tech Mono',monospace",
+                          fontSize: "10px",
+                          cursor: "pointer",
+                          transition: "all 0.2s"
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = `${T.primary}11`}
+                        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                      >
+                        RESET
+                      </button>
+                      <button
+                        onClick={exportToCSV}
+                        type="button"
+                        disabled={visibleTransactions.length === 0}
+                        style={{
+                          flex: 1.2,
+                          background: T.switchBg,
+                          color: T.switchText,
+                          border: "none",
+                          borderRadius: "8px",
+                          padding: "8px",
+                          fontFamily: "'Share Tech Mono',monospace",
+                          fontSize: "10px",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          opacity: visibleTransactions.length === 0 ? 0.4 : 1,
+                          transition: "all 0.2s"
+                        }}
+                      >
+                        EXPORT CSV
+                      </button>
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                <label className="budget-input monthly-budget-input">
-                  <span>Monthly budget</span>
-                  <input
-                    min="0"
-                    onChange={(event) => updateMonthlyBudget(event.target.value)}
-                    step="500"
-                    type="number"
-                    value={monthlyBudget}
-                  />
-                </label>
-              </section>
+              {/* ── SECTION HEADER ── */}
+              <div style={{ display:"flex", alignItems:"center", gap:"8px",
+                marginBottom:"14px", animation:"slideIn .55s .22s ease both" }}>
+                <div style={{ flex:1, height:"1px",
+                  background:`linear-gradient(90deg,transparent,${T.primary}33)`,
+                  transition:"background .5s" }}/>
+                {theme==="zenitsu"
+                  ? <Kunai color={`${T.primary}66`} size={13} rotate={-90}/>
+                  : <Droplet size={11} color={`${T.primary}66`} opacity={0.8}/>}
+                <span style={{ fontFamily:"'Share Tech Mono',monospace", fontSize:"9px",
+                  letterSpacing:"2.5px", color:`${T.primary}66`,
+                  textTransform:"uppercase", whiteSpace:"nowrap",
+                  transition:"color .5s" }}>
+                  BREATHING FORMS
+                </span>
+                {theme==="zenitsu"
+                  ? <Kunai color={`${T.primary}66`} size={13} rotate={90}/>
+                  : <Droplet size={11} color={`${T.primary}66`} opacity={0.8}/>}
+                <div style={{ flex:1, height:"1px",
+                  background:`linear-gradient(90deg,${T.primary}33,transparent)`,
+                  transition:"background .5s" }}/>
+                <span style={{ fontFamily:"'Share Tech Mono',monospace",
+                  fontSize:"9px", color:T.muted, marginLeft:"6px",
+                  transition:"color .5s" }}>
+                  {groupedCategories.length} forms
+                </span>
+              </div>
 
-              <section className="budget-editor sandbox-simulator" aria-label="Sandbox Simulator">
-                <div className="section-heading">
-                  <div>
-                    <span className="section-label">Sandbox Simulator</span>
-                    <h2>Add custom transaction</h2>
+              {/* ── CATEGORY CARDS ── */}
+              <div style={{ display:"flex", flexDirection:"column", gap:"10px", marginBottom:"40px" }}>
+                {groupedCategories.map((category, idx) => {
+                  const isOpen = !!expanded[category.name];
+                  const share = pct(category.total, totalSpent || 1);
+                  const cc = T.catColors[idx % T.catColors.length];
+                  
+                  // Get dynamic emoji and breathing form details
+                  const catDetails = getCategoryDetails(category.name, idx);
+                  
+                  const hasCatBudget = categoryBudgets[category.name] !== undefined && categoryBudgets[category.name] > 0;
+                  const catBudgetVal = hasCatBudget ? categoryBudgets[category.name] : 0;
+                  const catUsagePercent = hasCatBudget ? (category.total / catBudgetVal) * 100 : 0;
+
+                  // Dynamic color based on budget status
+                  let fillBg = cc;
+                  if (hasCatBudget) {
+                    if (catUsagePercent >= 90) fillBg = "#ff4444";
+                    else if (catUsagePercent >= 70) fillBg = T.secondary;
+                    else fillBg = T.accent;
+                  }
+
+                  return (
+                    <div key={category.name} className="ds-card"
+                      onClick={() => toggle(category.name)}
+                      style={{
+                        position:"relative",
+                        background: isOpen ? T.raised : T.panel,
+                        border:`1px solid ${isOpen ? cc+"55" : T.border}`,
+                        borderRadius:"14px", overflow:"hidden",
+                        cursor:"pointer",
+                        transition:"border-color .25s, background .25s",
+                        animation:`slideIn .5s ${.28+idx*.055}s ease both`,
+                      }}>
+
+                      {/* Haori stripe top */}
+                      <div style={{ position:"absolute", top:0, left:0, right:0, height:"3px",
+                        background:`repeating-linear-gradient(${T.haoriAngle},${cc} 0,${cc} 10px,transparent 10px,transparent 20px)`,
+                        opacity: isOpen ? 0.8 : 0.3, transition:"opacity .25s, background .5s" }}/>
+
+                      {/* Left strip */}
+                      <div style={{ position:"absolute", left:0, top:"14%", bottom:"14%",
+                        width:"3px", borderRadius:"0 3px 3px 0",
+                        background:cc,
+                        boxShadow:`0 0 10px ${cc}99, 0 0 22px ${cc}44`,
+                        transition:"background .5s, box-shadow .5s" }}/>
+
+                      {/* Kunai watermark */}
+                      <div className="kunai-wm" style={{ position:"absolute", right:"6px", top:"6px",
+                        opacity:0.06, transition:"opacity .2s",
+                        transform:"rotate(-45deg)" }}>
+                        <Kunai color={cc} size={20} rotate={0}/>
+                      </div>
+
+                      {/* Shine on hover */}
+                      <div className="card-shine" style={{ position:"absolute", top:0, bottom:0,
+                        width:"40%",
+                        background:`linear-gradient(90deg,transparent,${cc}08,transparent)`,
+                        left:"-100%", pointerEvents:"none" }}/>
+
+                      {isOpen && (
+                        <div style={{ position:"absolute", inset:0, pointerEvents:"none",
+                          background:`radial-gradient(ellipse at top left,${cc}0e,transparent 55%)` }}/>
+                      )}
+
+                      <div style={{ padding:"14px 14px 14px 18px" }}>
+                        <div style={{ display:"flex", justifyContent:"space-between",
+                          alignItems:"center", marginBottom:"10px" }}>
+                          <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+                            <div style={{ width:"42px", height:"42px",
+                              background:T.raised, borderRadius:"10px",
+                              display:"flex", alignItems:"center", justifyContent:"center",
+                              fontSize:"19px", flexShrink:0,
+                              border:`1px solid ${cc}44`,
+                              boxShadow:`0 0 14px ${cc}30`,
+                              position:"relative", overflow:"hidden",
+                              transition:"background .5s, border-color .5s" }}>
+                              <div style={{ position:"absolute", bottom:0, left:0, right:0, height:"5px",
+                                background:`repeating-linear-gradient(${T.haoriAngle},${cc}55 0,${cc}55 4px,transparent 4px,transparent 8px)` }}/>
+                              {catDetails.emoji}
+                            </div>
+                            <div>
+                              <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"2px" }}>
+                                <span style={{ fontSize:"14px", fontWeight:700, color:"#d0cce8",
+                                  fontFamily:"'Rajdhani',sans-serif", letterSpacing:"0.5px" }}>
+                                  {category.name}
+                                </span>
+                                <span style={{ fontFamily:"'Noto Serif JP',serif",
+                                  fontSize:"10px", color:cc+"88",
+                                  padding:"1px 5px",
+                                  border:`1px solid ${cc}30`,
+                                  borderRadius:"4px",
+                                  background:`${cc}0c`,
+                                  transition:"color .5s, border-color .5s" }}>
+                                  {catDetails.form}
+                                </span>
+                              </div>
+                              <div style={{ display:"flex", alignItems:"center", gap:"5px" }}>
+                                <MiniKatana color={cc+"77"} size={28}/>
+                                <span style={{ fontSize:"10px",
+                                  fontFamily:"'Share Tech Mono',monospace",
+                                  color:cc+"77", letterSpacing:"0.4px",
+                                  transition:"color .5s" }}>
+                                  {category.items.length} strikes · {share}%
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+                            <span style={{ fontSize:"16px", fontWeight:700,
+                              fontFamily:"'Share Tech Mono',monospace",
+                              color:cc, textShadow:`0 0 14px ${cc}aa`,
+                              transition:"color .5s, text-shadow .5s" }}>
+                              {fmt(category.total)}
+                            </span>
+                            <div style={{ width:"24px", height:"24px",
+                              border:`1px solid ${cc}44`, borderRadius:"6px",
+                              background:`${cc}0c`,
+                              display:"flex", alignItems:"center", justifyContent:"center",
+                              transition:"transform .25s, border-color .5s",
+                              transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                              <span style={{ color:cc, fontSize:"13px", lineHeight:1,
+                                transition:"color .5s" }}>▾</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Progress bar */}
+                        <div style={{ height:"5px", background:T.border,
+                          borderRadius:"3px", overflow:"hidden" }}>
+                          <div style={{ height:"100%", borderRadius:"3px",
+                            width:`${hasCatBudget ? Math.min(catUsagePercent, 100) : share}%`,
+                            background: `linear-gradient(90deg, ${fillBg}66, ${fillBg})`,
+                            boxShadow:`0 0 12px ${fillBg}88`,
+                            transition:"width .5s ease, background .5s",
+                            position:"relative", overflow:"hidden" }}>
+                            <div style={{ position:"absolute", top:0, left:0, right:0, height:"45%",
+                              background:"rgba(255,255,255,0.28)", borderRadius:"3px 3px 0 0" }}/>
+                          </div>
+                        </div>
+
+                        {/* Progress Details */}
+                        <div style={{ display:"flex", justifyContent:"space-between", marginTop:"4px" }}>
+                          <span style={{ fontSize:"9px", fontFamily:"'Share Tech Mono',monospace",
+                            color:cc+"88", transition:"color .5s" }}>
+                            {hasCatBudget ? `${catUsagePercent.toFixed(0)}% of limit` : `${share}% energy`}
+                          </span>
+                          <span style={{ fontSize:"9px", fontFamily:"'Share Tech Mono',monospace",
+                            color:T.muted, transition:"color .5s" }}>
+                            {hasCatBudget ? `${fmt(category.total)} / ${fmt(catBudgetVal)}` : `${fmt(category.total)}`}
+                          </span>
+                        </div>
+
+                        {/* Category Budget Form & Set Budget Panel */}
+                        {isOpen && (
+                          <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: `1px dashed ${cc}22` }}>
+                            {editingCategory === category.name ? (
+                              <form
+                                onSubmit={(e) => {
+                                  e.preventDefault();
+                                  handleSaveCategoryBudget(category.name);
+                                }}
+                                onClick={(e) => e.stopPropagation()}
+                                style={{ display: "flex", gap: "6px", alignItems: "center" }}
+                              >
+                                <input
+                                  required
+                                  type="number"
+                                  min="1"
+                                  placeholder="Set cap ₹..."
+                                  value={editingBudgetVal}
+                                  onChange={(e) => setEditingBudgetVal(e.target.value)}
+                                  autoFocus
+                                  style={{
+                                    flex: 1,
+                                    background: T.raised,
+                                    color: "#fff",
+                                    border: `1px solid ${cc}44`,
+                                    borderRadius: "6px",
+                                    padding: "4px 8px",
+                                    fontSize: "11px",
+                                    outline: "none",
+                                    fontFamily: "'Share Tech Mono',monospace"
+                                  }}
+                                />
+                                <button
+                                  type="submit"
+                                  style={{
+                                    background: cc,
+                                    color: "#0a0a14",
+                                    border: "none",
+                                    borderRadius: "6px",
+                                    padding: "4px 10px",
+                                    fontSize: "10px",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                    fontFamily: "'Share Tech Mono',monospace"
+                                  }}
+                                >
+                                  SAVE
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingCategory(null);
+                                    setEditingBudgetVal("");
+                                  }}
+                                  style={{
+                                    background: "transparent",
+                                    color: T.muted,
+                                    border: `1px solid ${T.muted}`,
+                                    borderRadius: "6px",
+                                    padding: "4px 8px",
+                                    fontSize: "10px",
+                                    cursor: "pointer",
+                                    fontFamily: "'Share Tech Mono',monospace"
+                                  }}
+                                >
+                                  CANCEL
+                                </button>
+                              </form>
+                            ) : (
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                <span style={{ fontSize: "9px", color: T.dim, fontFamily: "'Share Tech Mono',monospace" }}>
+                                  {hasCatBudget ? `FORM ENERGY CAP: ${fmt(catBudgetVal)}` : "NO BUDGET LIMIT SET"}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingCategory(category.name);
+                                    setEditingBudgetVal(hasCatBudget ? String(catBudgetVal) : "");
+                                  }}
+                                  style={{
+                                    background: "transparent",
+                                    border: `1px solid ${cc}33`,
+                                    color: cc,
+                                    borderRadius: "4px",
+                                    padding: "2px 6px",
+                                    fontSize: "9px",
+                                    cursor: "pointer",
+                                    fontFamily: "'Share Tech Mono',monospace",
+                                    transition: "all 0.2s"
+                                  }}
+                                >
+                                  {hasCatBudget ? "✏️ EDIT CAP" : "➕ SET CAP"}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Transactions list */}
+                        {isOpen && (
+                          <div style={{ marginTop:"14px" }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:"8px",
+                              borderTop:`1px solid ${cc}22`,
+                              paddingTop:"10px", marginBottom:"10px" }}>
+                              {theme==="zenitsu"
+                                ? <Bolt size={10} color={cc+"88"}/>
+                                : <Droplet size={9} color={cc} opacity={0.7}/>}
+                              <span style={{ fontFamily:"'Share Tech Mono',monospace",
+                                fontSize:"8px", letterSpacing:"2px",
+                                color:cc+"77", textTransform:"uppercase",
+                                transition:"color .5s" }}>
+                                STRIKE LOG
+                              </span>
+                              <div style={{ flex:1, height:"1px",
+                                background:`linear-gradient(90deg,${cc}22,transparent)` }}/>
+                              {theme==="tanjiro"
+                                ? <WaterWave color={cc} width={40} opacity={0.4}/>
+                                : <Wisteria size={13} opacity={0.4}/>}
+                            </div>
+                            {category.items.map((tx,i)=>(
+                              <div key={tx.id} style={{ display:"flex", justifyContent:"space-between",
+                                alignItems:"center",
+                                paddingBottom:"8px", marginBottom:"4px",
+                                borderBottom: i<category.items.length-1 ? `1px solid ${cc}12` : "none" }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+                                  <div style={{ width:"5px", height:"5px", borderRadius:"50%",
+                                    background:cc, boxShadow:`0 0 5px ${cc}99`, flexShrink:0 }}/>
+                                  <div>
+                                    <div style={{ fontSize:"12px", color:"#6a6a9a",
+                                      fontFamily:"'Share Tech Mono',monospace" }}>{tx.name}</div>
+                                    <div style={{ fontSize:"10px", color:T.muted,
+                                      fontFamily:"'Share Tech Mono',monospace", marginTop:"1px",
+                                      transition:"color .5s" }}>{tx.dateLabel}</div>
+                                  </div>
+                                </div>
+                                <span style={{ fontSize:"13px", fontWeight:600,
+                                  fontFamily:"'Share Tech Mono',monospace",
+                                  color:cc, textShadow:`0 0 10px ${cc}55`,
+                                  transition:"color .5s" }}>
+                                  {fmt(tx.amount)}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* ── ANALYTICS SCROLLS ── */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "30px", animation: "slideIn .55s .3s ease both" }}>
+                
+                {/* Daily spend rhythm */}
+                <div style={{
+                  background: T.panel,
+                  border: `1px solid ${T.primary}22`,
+                  borderRadius: "14px",
+                  padding: "16px",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <MiniKatana color={`${T.primary}77`} size={28}/>
+                      <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
+                        DAILY STRIKE RHYTHM
+                      </span>
+                    </div>
+                    <span style={{ fontSize: "8px", color: T.muted, fontFamily: "'Share Tech Mono',monospace" }}>
+                      SPEND BY DAY
+                    </span>
                   </div>
-                  {localTransactions.length > 0 && (
-                    <button
-                      className="btn-danger-link"
-                      onClick={clearLocalTransactions}
-                      type="button"
-                    >
-                      Reset Local ({localTransactions.length})
-                    </button>
+
+                  {dailySpend.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "20px", color: T.muted, fontSize: "11px", fontFamily: "'Share Tech Mono',monospace" }}>
+                      NO STRIKES RECORDED FOR THIS MONTH
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "flex-end", height: "80px", gap: "4px", padding: "10px 0 2px", overflowX: "auto", overflowY: "hidden" }}>
+                      {dailySpend.map((day) => {
+                        const percent = (day.total / maxDailySpend) * 100;
+                        return (
+                          <div key={day.date.toISOString()} style={{
+                            flex: 1,
+                            display: "flex",
+                            flexDirection: "column",
+                            alignItems: "center",
+                            minWidth: "12px",
+                            height: "100%"
+                          }}>
+                            <div
+                              title={`${dayFormatter.format(day.date)}: ${fmt(day.total)}`}
+                              style={{
+                                width: "100%",
+                                height: `${Math.max(percent, 6)}%`,
+                                background: `linear-gradient(to top, ${T.secondary}77, ${T.primary})`,
+                                boxShadow: `0 0 6px ${T.primary}55`,
+                                borderRadius: "3px 3px 0 0",
+                                transition: "height 0.4s ease, background 0.5s",
+                                position: "relative"
+                              }}
+                            />
+                            <span style={{ fontSize: "8px", color: T.dim, fontFamily: "'Share Tech Mono',monospace", marginTop: "4px" }}>
+                              {day.date.getDate()}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   )}
                 </div>
 
-                <form className="sandbox-form" onSubmit={handleAddExpense}>
-                  <div className="form-group-row">
-                    <label className="budget-input">
-                      <span>Expense name</span>
-                      <input
-                        required
-                        placeholder="e.g., Starbucks Coffee"
-                        type="text"
-                        value={newExpenseName}
-                        onChange={(e) => setNewExpenseName(e.target.value)}
-                      />
-                    </label>
-
-                    <label className="budget-input">
-                      <span>Amount (INR)</span>
-                      <input
-                        required
-                        min="1"
-                        placeholder="e.g., 250"
-                        type="number"
-                        value={newExpenseAmount}
-                        onChange={(e) => setNewExpenseAmount(e.target.value)}
-                      />
-                    </label>
+                {/* Monthly Compare */}
+                <div style={{
+                  background: T.panel,
+                  border: `1px solid ${T.primary}22`,
+                  borderRadius: "14px",
+                  padding: "16px",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <MiniKatana color={`${T.primary}77`} size={28}/>
+                      <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
+                        CHRONOLOGY OF STRIKES
+                      </span>
+                    </div>
+                    <span style={{ fontSize: "8px", color: T.muted, fontFamily: "'Share Tech Mono',monospace" }}>
+                      MONTH COMPARISON
+                    </span>
                   </div>
 
-                  <div className="form-group-row">
-                    <label className="budget-input">
-                      <span>Category</span>
-                      {isCustomCategory ? (
-                        <div className="custom-cat-row">
-                          <input
-                            required
-                            placeholder="Type new category..."
-                            type="text"
-                            value={customCategory}
-                            onChange={(e) => setCustomCategory(e.target.value)}
-                          />
-                          <button
-                            className="btn-text-action"
-                            onClick={() => setIsCustomCategory(false)}
-                            type="button"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      ) : (
-                        <select
-                          value={newExpenseCategory}
-                          onChange={(e) => {
-                            if (e.target.value === "__custom__") {
-                              setIsCustomCategory(true);
-                            } else {
-                              setNewExpenseCategory(e.target.value);
-                            }
-                          }}
-                        >
-                          <option value="">Select a category</option>
-                          {categoryOptions.map((cat) => (
-                            <option key={cat} value={cat}>
-                              {cat}
-                            </option>
-                          ))}
-                          <option value="__custom__">✨ Create custom category...</option>
-                        </select>
-                      )}
-                    </label>
-
-                    <label className="budget-input">
-                      <span>Date</span>
-                      <input
-                        required
-                        type="date"
-                        value={newExpenseDate}
-                        onChange={(e) => setNewExpenseDate(e.target.value)}
-                      />
-                    </label>
-                  </div>
-
-                  <button className="sandbox-submit-btn" type="submit">
-                    <span>✨ Add Simulated Expense</span>
-                  </button>
-                </form>
-              </section>
-            </div>
-
-            {visibleTransactions.length === 0 ? (
-              <div className="state-panel">No expenses match the current filters.</div>
-            ) : (
-              <section className="category-list" aria-label="Category breakdown">
-                {groupedCategories.map((category, index) => {
-                  const color = palette[index % palette.length];
-                  const isOpen = Boolean(expanded[category.name]);
-                  const progress =
-                    totalSpent > 0 ? (category.total / totalSpent) * 100 : 0;
-                  const budgetShare =
-                    monthlyBudget > 0 ? (category.total / monthlyBudget) * 100 : 0;
-
-                  return (
-                    <article className="category-card" key={category.name}>
-                      <button
-                        aria-expanded={isOpen}
-                        className="category-trigger"
-                        onClick={() => toggle(category.name)}
-                        type="button"
-                      >
-                        <span
-                          className="category-dot"
-                          style={{ backgroundColor: color }}
-                        />
-                        <span className="category-title-block">
-                          <strong>{category.name}</strong>
-                          <small>{category.items.length} transactions</small>
-                        </span>
-                        <span className="category-amount">
-                          {currency.format(category.total)}
-                        </span>
-                        <span className="category-chevron">
-                          {isOpen ? "Close" : "Open"}
-                        </span>
-                      </button>
-
-                      {(() => {
-                        const hasCatBudget = categoryBudgets[category.name] !== undefined && categoryBudgets[category.name] > 0;
-                        const catBudgetVal = hasCatBudget ? categoryBudgets[category.name] : 0;
-                        const catUsagePercent = hasCatBudget ? (category.total / catBudgetVal) * 100 : 0;
-
-                        // Dynamic class for progress colors
-                        let progressClass = "";
-                        if (hasCatBudget) {
-                          if (catUsagePercent >= 90) progressClass = "over-limit";
-                          else if (catUsagePercent >= 70) progressClass = "near-limit";
-                          else progressClass = "under-limit";
-                        }
-
+                  {monthlySpend.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "20px", color: T.muted, fontSize: "11px", fontFamily: "'Share Tech Mono',monospace" }}>
+                      NO HISTORY FOUND
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", alignItems: "flex-end", height: "90px", gap: "10px", padding: "10px 0 2px" }}>
+                      {monthlySpend.map((month) => {
+                        const isActive = month.key === activeMonth;
+                        const percent = (month.total / maxMonthlySpend) * 100;
                         return (
-                          <>
-                            <div className="progress-track">
-                              <span
-                                className={`progress-fill ${progressClass}`}
-                                style={{
-                                  backgroundColor: progressClass ? undefined : color,
-                                  width: `${hasCatBudget ? Math.min(catUsagePercent, 100) : progress}%`,
-                                }}
-                              />
-                            </div>
-
-                            <div className="budget-row">
-                              {editingCategory === category.name ? (
-                                <form
-                                  className="category-budget-form"
-                                  onSubmit={(e) => {
-                                    e.preventDefault();
-                                    handleSaveCategoryBudget(category.name);
-                                  }}
-                                >
-                                  <input
-                                    required
-                                    type="number"
-                                    min="1"
-                                    placeholder="Enter budget ₹..."
-                                    value={editingBudgetVal}
-                                    onChange={(e) => setEditingBudgetVal(e.target.value)}
-                                    autoFocus
-                                  />
-                                  <button type="submit" className="btn-save-budget">Save</button>
-                                  <button
-                                    type="button"
-                                    className="btn-cancel-budget"
-                                    onClick={() => {
-                                      setEditingCategory(null);
-                                      setEditingBudgetVal("");
-                                    }}
-                                  >
-                                    Cancel
-                                  </button>
-                                </form>
-                              ) : (
-                                <div className="category-budget-block">
-                                  <span>
-                                    {hasCatBudget ? (
-                                      <>
-                                        <strong>{catUsagePercent.toFixed(0)}%</strong> of Category Budget ({currency.format(category.total)} of {currency.format(catBudgetVal)})
-                                      </>
-                                    ) : (
-                                      `${budgetShare.toFixed(0)}% of monthly budget`
-                                    )}
-                                  </span>
-                                  {isOpen && (
-                                    <button
-                                      type="button"
-                                      className="btn-edit-budget-trigger"
-                                      onClick={() => {
-                                        setEditingCategory(category.name);
-                                        setEditingBudgetVal(hasCatBudget ? String(catBudgetVal) : "");
-                                      }}
-                                    >
-                                      {hasCatBudget ? "✏️ Edit Budget" : "➕ Set Budget"}
-                                    </button>
-                                  )}
-                                </div>
-                              )}
-                              <b>{hasCatBudget ? currency.format(catBudgetVal) : currency.format(monthlyBudget)}</b>
-                            </div>
-                          </>
+                          <button
+                            key={month.key}
+                            onClick={() => {
+                              setSelectedMonth(month.key);
+                              resetFilters();
+                            }}
+                            type="button"
+                            style={{
+                              flex: 1,
+                              display: "flex",
+                              flexDirection: "column",
+                              alignItems: "center",
+                              height: "100%",
+                              background: "transparent",
+                              border: "none",
+                              cursor: "pointer",
+                              outline: "none",
+                              padding: 0
+                            }}
+                          >
+                            <span style={{
+                              fontSize: "8px",
+                              color: isActive ? T.primary : T.dim,
+                              fontFamily: "'Share Tech Mono',monospace",
+                              fontWeight: isActive ? 700 : 400,
+                              marginBottom: "4px",
+                              transition: "color 0.3s"
+                            }}>
+                              {fmt(month.total)}
+                            </span>
+                            <div style={{
+                              width: "100%",
+                              height: `${Math.max(percent, 10)}%`,
+                              background: isActive ? T.switchBg : `${T.primary}22`,
+                              border: `1px solid ${isActive ? T.primary : T.primary + "33"}`,
+                              borderRadius: "4px 4px 0 0",
+                              boxShadow: isActive ? `0 0 10px ${T.primary}55` : "none",
+                              transition: "all 0.3s"
+                            }} />
+                            <span style={{
+                              fontSize: "8px",
+                              color: isActive ? T.primary : T.dim,
+                              fontFamily: "'Share Tech Mono',monospace",
+                              marginTop: "4px",
+                              fontWeight: isActive ? 700 : 400
+                            }}>
+                              {shortMonthFormatter.format(month.date).toUpperCase()}
+                            </span>
+                          </button>
                         );
-                      })()}
+                      })}
+                    </div>
+                  )}
+                </div>
 
-                      {isOpen && (
-                        <div className="transaction-list">
-                          {category.items.map((tx) => (
-                            <div className="transaction-row" key={tx.id}>
-                              <span>
-                                <strong>{tx.name}</strong>
-                                <small>{tx.dateLabel}</small>
-                              </span>
-                              <b>{currency.format(tx.amount)}</b>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </article>
-                  );
-                })}
-              </section>
-            )}
-          </>
-        )}
-      </section>
+              </div>
+
+              {/* ── TOOLS GRID ── */}
+              <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "30px", animation: "slideIn .55s .35s ease both" }}>
+                
+                {/* Monthly Budget Editor */}
+                <div style={{
+                  background: T.panel,
+                  border: `1px solid ${T.primary}22`,
+                  borderRadius: "14px",
+                  padding: "16px",
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "12px" }}>
+                    <MiniKatana color={`${T.primary}77`} size={28}/>
+                    <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
+                      SET MONTHLY ENERGY CAP
+                    </span>
+                  </div>
+                  <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                    <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>BUDGET CAPACITY (INR)</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="500"
+                      value={monthlyBudget}
+                      onChange={(e) => updateMonthlyBudget(e.target.value)}
+                      style={{
+                        background: T.raised,
+                        color: "#fff",
+                        border: `1px solid ${T.primary}22`,
+                        borderRadius: "8px",
+                        padding: "8px 12px",
+                        fontFamily: "'Share Tech Mono',monospace",
+                        fontSize: "12px",
+                        outline: "none"
+                      }}
+                    />
+                  </label>
+                </div>
+
+                {/* Sandbox Simulator */}
+                <div style={{
+                  background: T.panel,
+                  border: `1px solid ${T.primary}22`,
+                  borderRadius: "14px",
+                  padding: "16px",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                      <MiniKatana color={`${T.primary}77`} size={28}/>
+                      <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
+                        SIMULATE CUSTOM STRIKE (LOCAL)
+                      </span>
+                    </div>
+                    {localTransactions.length > 0 && (
+                      <button
+                        onClick={clearLocalTransactions}
+                        type="button"
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: "#ff4444",
+                          fontFamily: "'Share Tech Mono',monospace",
+                          fontSize: "9px",
+                          cursor: "pointer",
+                          textTransform: "uppercase"
+                        }}
+                      >
+                        Reset Local ({localTransactions.length})
+                      </button>
+                    )}
+                  </div>
+
+                  <form onSubmit={handleAddExpense} style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                      <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>STRIKE NAME</span>
+                        <input
+                          required
+                          placeholder="Starbucks Coffee, etc."
+                          value={newExpenseName}
+                          onChange={(e) => setNewExpenseName(e.target.value)}
+                          style={{
+                            background: T.raised,
+                            color: "#fff",
+                            border: `1px solid ${T.primary}22`,
+                            borderRadius: "8px",
+                            padding: "8px 10px",
+                            fontSize: "12px",
+                            outline: "none"
+                          }}
+                        />
+                      </label>
+                      
+                      <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>AMOUNT (INR)</span>
+                        <input
+                          required
+                          type="number"
+                          min="1"
+                          placeholder="e.g. 250"
+                          value={newExpenseAmount}
+                          onChange={(e) => setNewExpenseAmount(e.target.value)}
+                          style={{
+                            background: T.raised,
+                            color: "#fff",
+                            border: `1px solid ${T.primary}22`,
+                            borderRadius: "8px",
+                            padding: "8px 10px",
+                            fontSize: "12px",
+                            outline: "none"
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px" }}>
+                      <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>BREATHING FORM</span>
+                        {isCustomCategory ? (
+                          <div style={{ display: "flex", gap: "4px" }}>
+                            <input
+                              required
+                              placeholder="New category name..."
+                              value={customCategory}
+                              onChange={(e) => setCustomCategory(e.target.value)}
+                              style={{
+                                flex: 1,
+                                background: T.raised,
+                                color: "#fff",
+                                border: `1px solid ${T.primary}22`,
+                                borderRadius: "8px",
+                                padding: "8px 10px",
+                                fontSize: "11px",
+                                outline: "none"
+                              }}
+                            />
+                            <button
+                              onClick={() => setIsCustomCategory(false)}
+                              type="button"
+                              style={{
+                                background: "transparent",
+                                border: `1px solid ${T.primary}44`,
+                                color: T.primary,
+                                borderRadius: "8px",
+                                padding: "0 8px",
+                                fontSize: "9px",
+                                cursor: "pointer",
+                                fontFamily: "'Share Tech Mono',monospace"
+                              }}
+                            >
+                              X
+                            </button>
+                          </div>
+                        ) : (
+                          <select
+                            value={newExpenseCategory}
+                            onChange={(e) => {
+                              if (e.target.value === "__custom__") {
+                                setIsCustomCategory(true);
+                              } else {
+                                setNewExpenseCategory(e.target.value);
+                              }
+                            }}
+                            style={{
+                              background: T.raised,
+                              color: "#fff",
+                              border: `1px solid ${T.primary}22`,
+                              borderRadius: "8px",
+                              padding: "8px 10px",
+                              fontSize: "11px",
+                              outline: "none",
+                              cursor: "pointer"
+                            }}
+                          >
+                            <option value="" style={{ background: T.raised }}>SELECT FORM</option>
+                            {categoryOptions.map((cat) => (
+                              <option key={cat} value={cat} style={{ background: T.raised }}>
+                                {cat.toUpperCase()}
+                              </option>
+                            ))}
+                            <option value="__custom__" style={{ background: T.raised }}>✨ CREATE NEW FORM...</option>
+                          </select>
+                        )}
+                      </label>
+
+                      <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>DATE OF STRIKE</span>
+                        <input
+                          type="date"
+                          required
+                          value={newExpenseDate}
+                          onChange={(e) => setNewExpenseDate(e.target.value)}
+                          style={{
+                            background: T.raised,
+                            color: "#fff",
+                            border: `1px solid ${T.primary}22`,
+                            borderRadius: "8px",
+                            padding: "7px 10px",
+                            fontSize: "12px",
+                            outline: "none"
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    <button
+                      type="submit"
+                      style={{
+                        background: T.switchBg,
+                        color: T.switchText,
+                        border: "none",
+                        borderRadius: "10px",
+                        padding: "10px",
+                        fontWeight: 700,
+                        fontSize: "11px",
+                        fontFamily: "'Share Tech Mono',monospace",
+                        letterSpacing: "1px",
+                        cursor: "pointer",
+                        transition: "all 0.3s",
+                        boxShadow: `0 0 10px ${T.primary}44`
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.filter = "brightness(1.1)"}
+                      onMouseLeave={(e) => e.currentTarget.style.filter = "none"}
+                    >
+                      ⚡ EXECUTE SIMULATED STRIKE
+                    </button>
+                  </form>
+                </div>
+
+              </div>
+            </>
+          )}
+
+          {/* ── FOOTER ── */}
+          <div style={{ textAlign:"center", paddingBottom:"20px",
+            animation:"slideIn .55s .6s ease both" }}>
+            <div style={{ display:"flex", justifyContent:"center", marginBottom:"12px",
+              opacity:0.45, animation:"pulsePrimary 4s ease-in-out infinite" }}>
+              {theme==="zenitsu"
+                ? <Katana width={190} color={T.primary} secondary={T.secondary} glowing={false}/>
+                : <TanjiroKatana width={190} glowing={false}/>}
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:"12px",
+              marginBottom:"12px", opacity:.28 }}>
+              <div style={{ flex:1, height:"1px",
+                background:`linear-gradient(90deg,transparent,${T.primary}55,transparent)` }}/>
+              <CorpsMark size={18} color={T.primary}/>
+              <div style={{ flex:1, height:"1px",
+                background:`linear-gradient(90deg,transparent,${T.primary}55,transparent)` }}/>
+            </div>
+            <div style={{ height:"4px", borderRadius:"2px",
+              background:`repeating-linear-gradient(${T.haoriAngle},${T.haoriColor1} 0,${T.haoriColor1} 8px,${T.haoriColor2} 8px,${T.haoriColor2} 16px)`,
+              opacity:0.4, transition:"background .5s", marginBottom:"10px" }}/>
+            <p style={{ margin:"4px 0 0", fontFamily:"'Share Tech Mono',monospace",
+              fontSize:"10px", color:T.dim, letterSpacing:"2px", textTransform:"uppercase",
+              transition:"color .5s" }}>
+              DEMON SLAYER CORPS · LEDGER SYSTEM
+            </p>
+          </div>
+
+        </div>
+
+      </div>
 
       {/* Google Sheets Connector Drawer Overlay */}
-      <div
-        className={`connector-overlay ${isConnectorOpen ? "is-open" : ""}`}
-        onClick={() => setIsConnectorOpen(false)}
-      />
-      <aside className={`connector-drawer ${isConnectorOpen ? "is-open" : ""}`} aria-label="Sheet Connector">
-        <div className="drawer-header">
-          <h2>Google Sheets Connection Center</h2>
-          <button className="btn-close-drawer" onClick={() => setIsConnectorOpen(false)} type="button">
+      {isConnectorOpen && (
+        <div
+          onClick={() => setIsConnectorOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.7)",
+            backdropFilter: "blur(4px)",
+            zIndex: 999,
+            transition: "all 0.3s"
+          }}
+        />
+      )}
+      
+      {/* Slide-in Connector Drawer */}
+      <aside
+        style={{
+          position: "fixed",
+          top: 0,
+          right: isConnectorOpen ? 0 : "-400px",
+          width: "100%",
+          maxWidth: "380px",
+          height: "100vh",
+          background: T.panel,
+          borderLeft: `1px solid ${T.primary}33`,
+          boxShadow: `-10px 0 30px rgba(0,0,0,0.6)`,
+          zIndex: 1000,
+          padding: "24px 20px",
+          overflowY: "auto",
+          transition: "right 0.3s ease-in-out, background 0.5s, border-left-color 0.5s",
+          display: "flex",
+          flexDirection: "column"
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+          <h2 style={{ fontFamily: "'Cinzel',serif", color: T.primary, fontSize: "20px", margin: 0, fontWeight: 700 }}>
+            SYNC PORTAL
+          </h2>
+          <button
+            onClick={() => setIsConnectorOpen(false)}
+            type="button"
+            style={{
+              background: "transparent",
+              border: "none",
+              color: T.primary,
+              fontSize: "24px",
+              cursor: "pointer",
+              lineHeight: 1
+            }}
+          >
             &times;
           </button>
         </div>
 
-        <div className="drawer-body">
-          <p className="drawer-intro">
-            Connect any shared Google Sheet to visualize your transactions in real-time.
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: "16px" }}>
+          <p style={{ color: "#d0cce8", fontSize: "12px", lineHeight: 1.5, margin: 0 }}>
+            Establish a bridge to your personal Google Sheet to sync real-time financial strikes.
           </p>
 
-          <form onSubmit={handleConnectSheet} className="connector-form">
-            <label className="budget-input">
-              <span>Google Sheet URL or ID</span>
+          <form onSubmit={handleConnectSheet} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+            <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>GOOGLE SHEET URL OR ID</span>
               <input
                 required
                 type="text"
                 placeholder="https://docs.google.com/spreadsheets/d/.../edit"
                 value={sheetUrlInput}
                 onChange={(e) => setSheetUrlInput(e.target.value)}
+                style={{
+                  background: T.raised,
+                  color: "#fff",
+                  border: `1px solid ${T.primary}22`,
+                  borderRadius: "8px",
+                  padding: "10px",
+                  fontSize: "12px",
+                  outline: "none"
+                }}
               />
             </label>
 
-            <label className="budget-input">
-              <span>Sheet Tab Name (case-sensitive)</span>
+            <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span style={{ fontFamily: "'Share Tech Mono',monospace", fontSize: "9px", color: T.dim }}>SHEET TAB NAME (CASE-SENSITIVE)</span>
               <input
                 required
                 type="text"
-                placeholder="e.g., Expense"
+                placeholder="e.g. Expense"
                 value={sheetTabInput}
                 onChange={(e) => setSheetTabInput(e.target.value)}
+                style={{
+                  background: T.raised,
+                  color: "#fff",
+                  border: `1px solid ${T.primary}22`,
+                  borderRadius: "8px",
+                  padding: "10px",
+                  fontSize: "12px",
+                  outline: "none"
+                }}
               />
             </label>
 
             {connectorStatus === "checking" && (
-              <div className="connector-diagnostic diagnostic-checking">
-                <span className="spinner">🌀</span> Connecting and validating sheet columns...
+              <div style={{ padding: "10px", background: `${T.secondary}11`, border: `1px solid ${T.secondary}44`, borderRadius: "8px", color: T.secondary, fontSize: "11px", display: "flex", alignItems: "center", gap: "6px" }}>
+                <span style={{ animation: "pulsePrimary 1.5s infinite", display: "inline-block" }}>🌀</span> Validating connection to Google Sheet...
               </div>
             )}
 
             {connectorStatus === "success" && (
-              <div className="connector-diagnostic diagnostic-success">
-                ✅ Connected successfully! loaded data from sheet.
+              <div style={{ padding: "10px", background: `${T.accent}11`, border: `1px solid ${T.accent}44`, borderRadius: "8px", color: T.accent, fontSize: "11px" }}>
+                ✅ Connection established! Synced successfully.
               </div>
             )}
 
             {connectorStatus === "error" && (
-              <div className="connector-diagnostic diagnostic-error">
+              <div style={{ padding: "10px", background: "rgba(255, 68, 68, 0.1)", border: "1px solid rgba(255, 68, 68, 0.4)", borderRadius: "8px", color: "#ff4444", fontSize: "11px" }}>
                 ❌ <strong>Error:</strong> {connectorError}
               </div>
             )}
 
-            <div className="drawer-actions">
+            <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "10px" }}>
               <button
                 type="submit"
-                className="btn-primary-gradient"
                 disabled={connectorStatus === "checking"}
+                style={{
+                  background: T.switchBg,
+                  color: T.switchText,
+                  border: "none",
+                  borderRadius: "10px",
+                  padding: "12px",
+                  fontWeight: 700,
+                  fontSize: "11px",
+                  fontFamily: "'Share Tech Mono',monospace",
+                  cursor: "pointer",
+                  transition: "all 0.3s",
+                  boxShadow: `0 0 10px ${T.primary}44`
+                }}
               >
-                Connect Sheet
+                CONNECT & SYNC
               </button>
 
               {isCustomActive && (
                 <button
                   type="button"
-                  className="btn-danger-badge"
                   onClick={handleResetToDemo}
+                  style={{
+                    background: "transparent",
+                    color: "#ff4444",
+                    border: "1px solid rgba(255, 68, 68, 0.4)",
+                    borderRadius: "10px",
+                    padding: "10px",
+                    fontWeight: 600,
+                    fontSize: "10px",
+                    fontFamily: "'Share Tech Mono',monospace",
+                    cursor: "pointer",
+                    transition: "all 0.2s"
+                  }}
                 >
-                  Disconnect & Use Demo Sheet
+                  DISCONNECT (USE DEMO SHEET)
                 </button>
               )}
             </div>
           </form>
 
-          <hr className="drawer-divider" />
+          <hr style={{ border: "none", borderTop: `1px solid ${T.primary}22`, margin: "16px 0" }} />
 
-          <section className="guide-section">
-            <h3>📖 How to share your Google Sheet</h3>
-            <ol className="sharing-steps">
-              <li>
-                Open your Google Sheet and click the blue <strong>Share</strong> button in the top right.
-              </li>
-              <li>
-                Under <em>General access</em>, change restriction to <strong>"Anyone with the link can view"</strong>.<br />
-                <small className="warning-text">⚠️ If set to Restricted, the dashboard won't be able to retrieve the data.</small>
-              </li>
-              <li>
-                Make sure the sheet contains columns titled exactly: <strong>Date</strong>, <strong>Expense</strong> (or <em>Item</em>), <strong>Amount</strong>, and <strong>Category</strong>.
-              </li>
-              <li>
-                Copy the browser link and paste it into the form above!
-              </li>
+          <section style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <h3 style={{ fontFamily: "'Cinzel',serif", color: T.primary, fontSize: "13px", margin: "0 0 4px" }}>
+              📖 sharing settings
+            </h3>
+            <ol style={{ margin: 0, paddingLeft: "16px", color: "#d0cce8", fontSize: "11px", display: "flex", flexDirection: "column", gap: "8px", lineHeight: 1.4 }}>
+              <li>Open your Google Sheet and click the blue <strong>Share</strong> button in the top right.</li>
+              <li>Under General access, change restriction to <strong>"Anyone with the link can view"</strong>.</li>
+              <li>Make sure the sheet contains columns titled exactly: <strong>Date</strong>, <strong>Expense</strong> (or Item), <strong>Amount</strong>, and <strong>Category</strong>.</li>
+              <li>Copy the browser link and paste it into the form above!</li>
             </ol>
           </section>
         </div>
       </aside>
-    </main>
+    </>
   );
 }
