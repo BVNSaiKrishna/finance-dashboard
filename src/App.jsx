@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import AIAssistant from "./components/AIAssistant";
 
 const DEFAULT_SHEET_URL =
   "https://opensheet.elk.sh/10A8amXj7QMzCfByz3Craq5dTnqwabD-0eN2v7ppoIsc/Expense";
@@ -485,6 +486,12 @@ export default function App() {
   const [refetchTrigger, setRefetchTrigger] = useState(0);
   const triggerRefetch = () => setRefetchTrigger(prev => prev + 1);
 
+  // AI Assistant States
+  const [isAIOpen, setIsAIOpen] = useState(false);
+  const [llmProvider, setLlmProvider] = useState(() => localStorage.getItem("finance-dashboard-llm-provider") || "gemini");
+  const [geminiKeyInput, setGeminiKeyInput] = useState(() => localStorage.getItem("finance-dashboard-gemini-key") || "");
+  const [openaiKeyInput, setOpenaiKeyInput] = useState(() => localStorage.getItem("finance-dashboard-openai-key") || "");
+
   // Upgrade Feature States
   const [theme, setTheme] = useState(() => {
     try {
@@ -805,6 +812,11 @@ export default function App() {
     setAppsScriptUrlInput("");
     setCustomAppsScriptUrl("");
     localStorage.removeItem(CUSTOM_APPS_SCRIPT_URL_KEY);
+    
+    setGeminiKeyInput("");
+    setOpenaiKeyInput("");
+    localStorage.removeItem("finance-dashboard-gemini-key");
+    localStorage.removeItem("finance-dashboard-openai-key");
   };
 
   const handleSaveCategoryBudget = (categoryName) => {
@@ -819,35 +831,37 @@ export default function App() {
 
   const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
 
-  const handleAddExpense = async (e) => {
-    e.preventDefault();
-    if (!newExpenseName.trim() || !newExpenseAmount) return;
-
-    const finalCategory = isCustomCategory ? customCategory.trim() : newExpenseCategory;
-    if (!finalCategory) {
-      alert("Please select or enter a category.");
-      return;
+  const logSpendingStrike = async ({ name, amount, category, date, paymentType }) => {
+    if (!name || !name.trim() || !amount) {
+      throw new Error("Invalid spending strike name or amount.");
     }
 
-    const parts = newExpenseDate.split("-");
-    const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
-
-    const expenseText = newExpenseName.trim();
-    const amountVal = Number(newExpenseAmount);
-
-    const finalPaymentType = isCustomPaymentType ? customPaymentType.trim() : newExpensePaymentType;
-    if (!finalPaymentType) {
-      alert("Please select or enter a payment type.");
-      return;
+    let formattedDate = "";
+    if (date) {
+      if (date.includes("-")) {
+        const parts = date.split("-");
+        formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+      } else {
+        formattedDate = date;
+      }
+    } else {
+      const today = new Date();
+      const dd = String(today.getDate()).padStart(2, "0");
+      const mm = String(today.getMonth() + 1).padStart(2, "0");
+      const yyyy = today.getFullYear();
+      formattedDate = `${dd}/${mm}/${yyyy}`;
     }
+
+    const finalCategory = category || "Other";
+    const finalPayment = paymentType || "UPI";
 
     const newTx = {
       id: `local-${Date.now()}`,
-      Expense: expenseText,
-      Amount: String(amountVal),
-      Category: finalCategory,
+      Expense: name.trim(),
+      Amount: String(amount),
+      Category: finalCategory.trim(),
       Date: formattedDate,
-      PaymentType: finalPaymentType,
+      PaymentType: finalPayment.trim(),
     };
 
     if (isCustomActive && customAppsScriptUrl.trim()) {
@@ -861,29 +875,22 @@ export default function App() {
           },
           body: JSON.stringify({
             date: formattedDate,
-            expense: expenseText,
-            amount: amountVal,
-            category: finalCategory,
-            paymentType: finalPaymentType
+            expense: name.trim(),
+            amount: Number(amount),
+            category: finalCategory.trim(),
+            paymentType: finalPayment.trim()
           })
         });
 
         let result = null;
         try {
           result = await response.json();
-        } catch {
-          // If response parsing fails, it's fine as long as standard redirects are followed
+        } catch (jsonErr) {
+          // Ignore parse issues if redirection occurs
         }
 
         if (response.ok || (result && result.status === "success")) {
           alert("\u{1F4A5} Strike logged to Google Sheet!");
-          
-          setNewExpenseName("");
-          setNewExpenseAmount("");
-          setCustomCategory("");
-          setIsCustomCategory(false);
-          setCustomPaymentType("");
-          setIsCustomPaymentType(false);
           triggerRefetch();
         } else {
           throw new Error("Invalid Apps Script response");
@@ -895,25 +902,45 @@ export default function App() {
         );
         if (proceedLocal) {
           setLocalTransactions((prev) => [newTx, ...prev]);
-          setNewExpenseName("");
-          setNewExpenseAmount("");
-          setCustomCategory("");
-          setIsCustomCategory(false);
-          setCustomPaymentType("");
-          setIsCustomPaymentType(false);
         }
       } finally {
         setIsSubmittingExpense(false);
       }
     } else {
       setLocalTransactions((prev) => [newTx, ...prev]);
-      setNewExpenseName("");
-      setNewExpenseAmount("");
-      setCustomCategory("");
-      setIsCustomCategory(false);
-      setCustomPaymentType("");
-      setIsCustomPaymentType(false);
     }
+  };
+
+  const handleAddExpense = async (e) => {
+    e.preventDefault();
+    if (!newExpenseName.trim() || !newExpenseAmount) return;
+
+    const finalCategory = isCustomCategory ? customCategory.trim() : newExpenseCategory;
+    if (!finalCategory) {
+      alert("Please select or enter a category.");
+      return;
+    }
+
+    const finalPaymentType = isCustomPaymentType ? customPaymentType.trim() : newExpensePaymentType;
+    if (!finalPaymentType) {
+      alert("Please select or enter a payment type.");
+      return;
+    }
+
+    await logSpendingStrike({
+      name: newExpenseName,
+      amount: Number(newExpenseAmount),
+      category: finalCategory,
+      date: newExpenseDate,
+      paymentType: finalPaymentType
+    });
+
+    setNewExpenseName("");
+    setNewExpenseAmount("");
+    setCustomCategory("");
+    setIsCustomCategory(false);
+    setCustomPaymentType("");
+    setIsCustomPaymentType(false);
   };
 
   const clearLocalTransactions = () => {
@@ -1173,6 +1200,43 @@ export default function App() {
                   </span>
                 )}
               </div>
+            </button>
+
+            {/* AI Assistant Pill */}
+            <button
+              onClick={() => setIsAIOpen(true)}
+              title="Consult AI Assistant"
+              type="button"
+              style={{
+                background: "rgba(255, 255, 255, 0.03)",
+                border: `1px solid ${T.primary}22`,
+                borderRadius: "12px",
+                padding: "8px 16px",
+                cursor: "pointer",
+                fontFamily: "'Inter', sans-serif",
+                fontSize: "10px",
+                fontWeight: 700,
+                color: T.primary,
+                letterSpacing: "1px",
+                transition: "all 0.3s ease",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "6px"
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = T.primary;
+                e.currentTarget.style.background = `${T.primary}11`;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = `${T.primary}22`;
+                e.currentTarget.style.background = "rgba(255, 255, 255, 0.03)";
+              }}
+            >
+              <span style={{ fontSize: "14px", display: "inline-block" }}>
+                {theme === "zenitsu" ? "🐦" : "🦅"}
+              </span>
+              AI MESSENGER
             </button>
 
             {/* Connect Button */}
@@ -2723,6 +2787,84 @@ export default function App() {
 
           <hr style={{ border: "none", borderTop: `1px solid ${T.primary}22`, margin: "16px 0" }} />
 
+          <section style={{ display: "flex", flexDirection: "column", gap: "12px", marginBottom: "8px" }}>
+            <h3 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: T.primary, fontSize: "13px", margin: 0, fontWeight: 700 }}>
+              🤖 AI MESSENGER CONFIG
+            </h3>
+            
+            <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+              <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>SELECT PROVIDER</span>
+              <select
+                value={llmProvider}
+                onChange={(e) => {
+                  setLlmProvider(e.target.value);
+                  localStorage.setItem("finance-dashboard-llm-provider", e.target.value);
+                }}
+                style={{
+                  background: T.raised,
+                  color: "#fff",
+                  border: `1px solid ${T.primary}22`,
+                  borderRadius: "8px",
+                  padding: "10px",
+                  fontSize: "12px",
+                  outline: "none",
+                  cursor: "pointer"
+                }}
+              >
+                <option value="gemini">Google Gemini (Gemini 1.5 Flash)</option>
+                <option value="openai">OpenAI GPT (GPT-4o-mini)</option>
+              </select>
+            </label>
+
+            {llmProvider === "gemini" ? (
+              <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>GEMINI API KEY</span>
+                <input
+                  type="password"
+                  placeholder="Enter Google AI Studio Key..."
+                  value={geminiKeyInput}
+                  onChange={(e) => {
+                    setGeminiKeyInput(e.target.value);
+                    localStorage.setItem("finance-dashboard-gemini-key", e.target.value);
+                  }}
+                  style={{
+                    background: T.raised,
+                    color: "#fff",
+                    border: `1px solid ${T.primary}22`,
+                    borderRadius: "8px",
+                    padding: "10px",
+                    fontSize: "12px",
+                    outline: "none"
+                  }}
+                />
+              </label>
+            ) : (
+              <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>OPENAI API KEY</span>
+                <input
+                  type="password"
+                  placeholder="Enter OpenAI API Bearer Token..."
+                  value={openaiKeyInput}
+                  onChange={(e) => {
+                    setOpenaiKeyInput(e.target.value);
+                    localStorage.setItem("finance-dashboard-openai-key", e.target.value);
+                  }}
+                  style={{
+                    background: T.raised,
+                    color: "#fff",
+                    border: `1px solid ${T.primary}22`,
+                    borderRadius: "8px",
+                    padding: "10px",
+                    fontSize: "12px",
+                    outline: "none"
+                  }}
+                />
+              </label>
+            )}
+          </section>
+
+          <hr style={{ border: "none", borderTop: `1px solid ${T.primary}22`, margin: "16px 0" }} />
+
           <section style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
             <h3 style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", color: T.primary, fontSize: "13px", margin: "0 0 4px" }}>
               📖 sharing & sync settings
@@ -2739,6 +2881,29 @@ export default function App() {
           </section>
         </div>
       </aside>
+
+      {/* AI Assistant Chat Drawer */}
+      <AIAssistant
+        isOpen={isAIOpen}
+        onClose={() => setIsAIOpen(false)}
+        theme={theme}
+        themes={THEMES}
+        activeMonth={activeMonth}
+        totalSpent={totalSpent}
+        monthlyBudget={monthlyBudget}
+        budgetRemaining={budgetRemaining}
+        groupedCategories={groupedCategories}
+        onAddExpense={logSpendingStrike}
+        onSetCategoryFilter={setSelectedCategory}
+        onSetSearchQuery={setQuery}
+        onSetMonthFilter={setSelectedMonth}
+        onSetBudget={updateMonthlyBudget}
+        onExportCSV={exportToCSV}
+        onOpenSettings={() => {
+          setIsAIOpen(false);
+          setIsConnectorOpen(true);
+        }}
+      />
     </>
   );
 }
