@@ -233,8 +233,8 @@ const THEMES = {
     secondary: "#FFA040",
     accent: "#AAFF44",
     glow: "#FFD700",
-    dim: "#2a2a45",
-    muted: "#1a1a30",
+    dim: "#8a8ab0",
+    muted: "#686895",
     kanji: "雷",
     haoriColor1: "#FFD700",
     haoriColor2: "#0a0a14",
@@ -261,8 +261,8 @@ const THEMES = {
     secondary: "#006688",
     accent: "#00FFCC",
     glow: "#00CCFF",
-    dim: "#1a3a44",
-    muted: "#0d2530",
+    dim: "#7093a0",
+    muted: "#4e707d",
     kanji: "水",
     haoriColor1: "#CC0000",
     haoriColor2: "#111",
@@ -448,6 +448,22 @@ const ThemeSwitcher = ({ current, onChange }) => {
   );
 };
 
+function getSlayerRank(budgetRemaining, monthlyBudget) {
+  if (monthlyBudget <= 0) return { rank: "Mizunoto", title: "Mizunoto (癸)", desc: "Lowest Slayer Rank", color: "#6a6a9a" };
+  const percent = (budgetRemaining / monthlyBudget) * 100;
+  if (budgetRemaining < 0) {
+    return { rank: "Demon", title: "Demon (鬼)", desc: "Lost budget control!", color: "#ff4444" };
+  } else if (percent >= 85) {
+    return { rank: "Hashira", title: "Hashira (柱)", desc: "Pillar of Budget Control", color: "#FFD700" };
+  } else if (percent >= 60) {
+    return { rank: "Kinoe", title: "Kinoe (甲)", desc: "Senior Slayer", color: "#FFA040" };
+  } else if (percent >= 30) {
+    return { rank: "Kanoe", title: "Kanoe (庚)", desc: "Intermediate Slayer", color: "#AAFF44" };
+  } else {
+    return { rank: "Mizunoto", title: "Mizunoto (癸)", desc: "Lowest Slayer Rank", color: "#688a9a" };
+  }
+}
+
 /* ═══════════════════════════════════════
    MAIN APPLICATION
 ═══════════════════════════════════════ */
@@ -509,6 +525,27 @@ export default function App() {
   const [isCustomPaymentType, setIsCustomPaymentType] = useState(false);
   const [customPaymentType, setCustomPaymentType] = useState("");
   const [switching, setSwitching] = useState(false);
+
+  // New Premium App States
+  const [activeTab, setActiveTab] = useState("dashboard"); // dashboard, forms, analytics, forge
+  const [isSlashPlaying, setIsSlashPlaying] = useState(false);
+  const [slashTriggerTheme, setSlashTriggerTheme] = useState("zenitsu");
+  const [toast, setToast] = useState({ show: false, message: "", type: "info" });
+
+  const showToast = (message, type = "info") => {
+    setToast({ show: true, message, type });
+    setTimeout(() => {
+      setToast(prev => ({ ...prev, show: false }));
+    }, 3000);
+  };
+
+  const triggerSlashAnimation = () => {
+    setSlashTriggerTheme(theme);
+    setIsSlashPlaying(true);
+    setTimeout(() => {
+      setIsSlashPlaying(false);
+    }, 600); // match animation duration
+  };
 
   const T = THEMES[theme];
 
@@ -679,6 +716,10 @@ export default function App() {
   const budgetUsed = monthlyBudget > 0 ? (monthlyTotal / monthlyBudget) * 100 : 0;
   const budgetRemaining = monthlyBudget - monthlyTotal;
 
+  const slayerRank = useMemo(() => {
+    return getSlayerRank(budgetRemaining, monthlyBudget);
+  }, [budgetRemaining, monthlyBudget]);
+
   // --- UPGRADE: PREDICTIVE METRICS & SPENDING VELOCITY ---
   const { dailyAllowanceRemaining, daysRemaining } = useMemo(() => {
     const now = new Date();
@@ -825,7 +866,7 @@ export default function App() {
 
     const finalCategory = isCustomCategory ? customCategory.trim() : newExpenseCategory;
     if (!finalCategory) {
-      alert("Please select or enter a category.");
+      showToast("Please select or enter a category.", "warning");
       return;
     }
 
@@ -837,7 +878,7 @@ export default function App() {
 
     const finalPaymentType = isCustomPaymentType ? customPaymentType.trim() : newExpensePaymentType;
     if (!finalPaymentType) {
-      alert("Please select or enter a payment type.");
+      showToast("Please select or enter a payment type.", "warning");
       return;
     }
 
@@ -876,7 +917,8 @@ export default function App() {
         }
 
         if (response.ok || (result && result.status === "success")) {
-          alert("\u{1F4A5} Strike logged to Google Sheet!");
+          triggerSlashAnimation();
+          showToast("Strike logged to Google Sheet!", "success");
           
           setNewExpenseName("");
           setNewExpenseAmount("");
@@ -895,6 +937,8 @@ export default function App() {
         );
         if (proceedLocal) {
           setLocalTransactions((prev) => [newTx, ...prev]);
+          triggerSlashAnimation();
+          showToast("Strike simulated locally", "success");
           setNewExpenseName("");
           setNewExpenseAmount("");
           setCustomCategory("");
@@ -907,6 +951,8 @@ export default function App() {
       }
     } else {
       setLocalTransactions((prev) => [newTx, ...prev]);
+      triggerSlashAnimation();
+      showToast("Strike simulated locally", "success");
       setNewExpenseName("");
       setNewExpenseAmount("");
       setCustomCategory("");
@@ -1012,9 +1058,123 @@ export default function App() {
         .sw-other:hover{background:var(--sw-other-bg)!important;color:#0a0a14!important}
         ::-webkit-scrollbar{width:3px}
         ::-webkit-scrollbar-thumb{border-radius:4px}
+
+        @keyframes swordSlash {
+          0% { transform: scaleX(0) rotate(-15deg); opacity: 0; }
+          15% { transform: scaleX(1.2) rotate(-15deg); opacity: 1; }
+          80% { transform: scaleX(1) rotate(-15deg); opacity: 1; filter: brightness(1.5) blur(0px); }
+          100% { transform: scaleX(1) rotate(-15deg); opacity: 0; filter: brightness(2) blur(8px); }
+        }
+        @keyframes screenFlash {
+          0% { background: transparent; }
+          10% { background: rgba(255, 255, 255, 0.85); }
+          20% { background: rgba(255, 255, 255, 0.15); }
+          90% { background: rgba(255, 255, 255, 0.05); }
+          100% { background: transparent; }
+        }
+        @keyframes shakeScreen {
+          0%, 100% { transform: translate(0, 0); }
+          10% { transform: translate(-4px, 4px); }
+          30% { transform: translate(4px, -4px); }
+          50% { transform: translate(-2px, -2px); }
+          70% { transform: translate(2px, 2px); }
+        }
+        .slash-overlay {
+          animation: screenFlash 0.5s ease-out forwards;
+        }
+        .slash-line {
+          position: absolute;
+          width: 140%;
+          height: 6px;
+          transform: rotate(-15deg);
+          box-shadow: 0 0 20px 8px var(--pc);
+          background: #ffffff;
+          animation: swordSlash 0.5s ease-out forwards;
+        }
+        .slash-active-zenitsu .slash-line {
+          background: #fff;
+          box-shadow: 0 0 25px 12px #FFD700, 0 0 10px 4px #FFF;
+        }
+        .slash-active-tanjiro .slash-line {
+          background: #fff;
+          box-shadow: 0 0 25px 12px #00AADD, 0 0 10px 4px #FFF;
+        }
+        .shake-container {
+          animation: shakeScreen 0.4s ease-out forwards;
+        }
+
+        @keyframes toastIn {
+          from { transform: translate(-50%, -20px); opacity: 0; }
+          to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        .toast-notification {
+          animation: toastIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        @keyframes slideInUp {
+          from { transform: translate(-50%, 40px); opacity: 0; }
+          to { transform: translate(-50%, 0); opacity: 1; }
+        }
+        .bottom-nav-bar {
+          position: fixed;
+          bottom: 20px;
+          left: 50%;
+          transform: translateX(-50%);
+          width: 420px;
+          max-width: calc(100% - 32px);
+          height: 64px;
+          background: rgba(10, 10, 18, 0.75);
+          backdrop-filter: blur(16px) saturate(190%);
+          -webkit-backdrop-filter: blur(16px) saturate(190%);
+          border: 1px solid var(--pc-c);
+          border-radius: 20px;
+          box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6), 0 0 12px var(--pc2);
+          display: flex;
+          justify-content: space-around;
+          align-items: center;
+          padding: 0 12px;
+          z-index: 900;
+          transition: all 0.4s ease;
+          animation: slideInUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+        }
+        .nav-tab-btn {
+          background: transparent;
+          border: none;
+          outline: none;
+          cursor: pointer;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 3px;
+          padding: 6px 12px;
+          border-radius: 12px;
+          color: #8888aa;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          position: relative;
+        }
+        .nav-tab-btn-active {
+          color: #ffffff !important;
+          transform: translateY(-2px);
+          text-shadow: 0 0 8px var(--pc);
+        }
+        .nav-tab-btn-active::after {
+          content: "";
+          position: absolute;
+          bottom: 2px;
+          width: 14px;
+          height: 3px;
+          background: var(--pc);
+          border-radius: 2px;
+          box-shadow: 0 0 8px var(--pc);
+          animation: pulsePrimary 2s infinite;
+        }
+        .nav-tab-btn:hover {
+          color: #ffffff;
+          transform: translateY(-1px);
+        }
       `}</style>
 
-      <div style={{
+      <div className={isSlashPlaying ? "shake-container" : ""} style={{
         "--pc": T.primary, "--pc2": T.primary+"66",
         "--raised-h": T.raised, "--pc-c": T.primary+"55",
         "--sw-other-bg": T.primary,
@@ -1292,20 +1452,26 @@ export default function App() {
                 </div>
 
                 {/* Dynamic character name + month */}
-                <h1 style={{ margin: "0 0 4px", fontFamily: "'Plus Jakarta Sans', sans-serif",
-                  fontSize: "44px", fontWeight: 900, lineHeight: 1.05, letterSpacing: "-0.5px" }}>
-                  <span style={{ color: T.primary,
-                    textShadow: `0 0 24px ${T.primary}aa, 0 0 50px ${T.primary}55`,
-                    transition: "color .5s, text-shadow .5s" }}>
-                    {monthWord}
+                <div style={{ display: "flex", flexDirection: "column", gap: "2px", margin: "4px 0" }}>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "10px", color: T.muted, letterSpacing: "3px", fontWeight: 700 }}>
+                    ERA · {yearWord}
                   </span>
-                  <span style={{ color: T.muted, transition: "color .5s" }}> {yearWord}</span>
-                </h1>
+                  <h1 style={{ margin: 0, fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    fontSize: "44px", fontWeight: 900, lineHeight: 1.0, letterSpacing: "-0.5px" }}>
+                    <span style={{ color: T.primary,
+                      textShadow: `0 0 24px ${T.primary}aa, 0 0 50px ${T.primary}55`,
+                      transition: "color .5s, text-shadow .5s" }}>
+                      {monthWord}
+                    </span>
+                  </h1>
+                </div>
 
                 <p style={{ margin: "6px 0", fontFamily: "'Inter', sans-serif",
                   fontSize: "9px", color: T.dim, letterSpacing: "2px", textTransform: "uppercase",
-                  transition: "color .5s" }}>
-                  {T.nameJP} · {T.name} · PERSONAL LEDGER
+                  transition: "color .5s", display: "flex", flexWrap: "wrap", alignItems: "center", gap: "6px" }}>
+                  <span>{T.nameJP} · {T.name}</span>
+                  <span style={{ color: T.primary }}>•</span>
+                  <span>RANK: <strong style={{ color: slayerRank.color, textShadow: `0 0 8px ${slayerRank.color}88` }}>{slayerRank.title}</strong></span>
                 </p>
 
                 <p style={{ margin: "0 0 6px", fontFamily: "'Noto Serif JP',serif",
@@ -1414,677 +1580,242 @@ export default function App() {
           {status === "ready" && (
             <>
               {/* ── SUMMARY CARDS ── */}
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr",
-                gap:"10px", marginBottom:"20px", animation:"slideIn .55s .1s ease both" }}>
-                {[
-                  { label:"TOTAL SPENT",  value:fmt(totalSpent), accent:T.primary },
-                  { label:"FORMS USED",   value:groupedCategories.length, accent:T.secondary },
-                  { label:"STRIKES",      value:visibleTransactions.length, accent:T.accent },
-                ].map(({label,value,accent})=>(
-                  <div key={label} style={{ position:"relative", background:T.panel,
-                    border:`1px solid ${accent}28`, borderRadius:"14px",
-                    padding:"16px 12px 14px", overflow:"hidden",
-                    transition:"background .5s, border-color .5s" }}>
-                    <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
-                      background:accent, opacity:.7 }}/>
-                    <div style={{ position:"absolute", top:0, left:0, right:0, height:"60%",
-                      background:`radial-gradient(ellipse at top,${accent}18,transparent 70%)` }}/>
-                    <div style={{ position:"absolute", bottom:0, left:0, right:0, height:"5px",
-                      background:`repeating-linear-gradient(${T.haoriAngle},${accent}44 0,${accent}44 8px,transparent 8px,transparent 16px)` }}/>
-                    <div style={{ position:"absolute", bottom:"8px", right:"6px", opacity:.06 }}>
-                      <MiniKatana color={accent} size={48}/>
+              {activeTab === "dashboard" && (
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr",
+                  gap:"10px", marginBottom:"20px", animation:"slideIn .55s .1s ease both" }}>
+                  {[
+                    { label:"TOTAL SPENT",  value:fmt(totalSpent), accent:T.primary },
+                    { label:"FORMS USED",   value:groupedCategories.length, accent:T.secondary },
+                    { label:"STRIKES",      value:visibleTransactions.length, accent:T.accent },
+                  ].map(({label,value,accent})=>(
+                    <div key={label} style={{ position:"relative", background:T.panel,
+                      border:`1px solid ${accent}28`, borderRadius:"14px",
+                      padding:"16px 12px 14px", overflow:"hidden",
+                      transition:"background .5s, border-color .5s" }}>
+                      <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
+                        background:accent, opacity:.7 }}/>
+                      <div style={{ position:"absolute", top:0, left:0, right:0, height:"60%",
+                        background:`radial-gradient(ellipse at top,${accent}18,transparent 70%)` }}/>
+                      <div style={{ position:"absolute", bottom:0, left:0, right:0, height:"5px",
+                        background:`repeating-linear-gradient(${T.haoriAngle},${accent}44 0,${accent}44 8px,transparent 8px,transparent 16px)` }}/>
+                      <div style={{ position:"absolute", bottom:"8px", right:"6px", opacity:.06 }}>
+                        <MiniKatana color={accent} size={48}/>
+                      </div>
+                      <div style={{ fontFamily:"'Inter', sans-serif", fontWeight:700,
+                        fontSize:"20px", color:accent,
+                        textShadow:`0 0 16px ${accent}77`,
+                        display:"block", marginBottom:"5px", position:"relative", zIndex:1,
+                        transition:"color .5s, text-shadow .5s" }}>
+                        {value}
+                      </div>
+                      <div style={{ fontSize:"8px", color:T.dim,
+                        fontFamily:"'Inter', sans-serif",
+                        letterSpacing:"1.5px", textTransform:"uppercase",
+                        position:"relative", zIndex:1, transition:"color .5s" }}>
+                        {label}
+                      </div>
                     </div>
-                    <div style={{ fontFamily:"'Inter', sans-serif", fontWeight:700,
-                      fontSize:"20px", color:accent,
-                      textShadow:`0 0 16px ${accent}77`,
-                      display:"block", marginBottom:"5px", position:"relative", zIndex:1,
-                      transition:"color .5s, text-shadow .5s" }}>
-                      {value}
-                    </div>
-                    <div style={{ fontSize:"8px", color:T.dim,
-                      fontFamily:"'Inter', sans-serif",
-                      letterSpacing:"1.5px", textTransform:"uppercase",
-                      position:"relative", zIndex:1, transition:"color .5s" }}>
-                      {label}
-                    </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
               {/* ── INSIGHTS GRID ── */}
-              <div style={{ display:"grid", gridTemplateColumns:"1fr 1.1fr 0.9fr",
-                gap:"10px", marginBottom:"20px", animation:"slideIn .55s .12s ease both" }}>
-                
-                {/* Budget Pulse */}
-                <div style={{ position:"relative", background:T.panel,
-                  border:`1px solid ${budgetRemaining < 0 ? "#ff4444" : T.primary}28`, borderRadius:"14px",
-                  padding:"12px 10px", overflow:"hidden", display: "flex", flexDirection: "column", justifyContent: "space-between",
-                  transition:"background .5s, border-color .5s" }}>
-                  <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
-                    background: budgetRemaining < 0 ? "#ff4444" : T.primary, opacity:.7 }}/>
-                  <div>
-                    <span style={{ fontSize:"8px", color:T.dim, fontFamily:"'Inter', sans-serif", letterSpacing:"1px", textTransform:"uppercase" }}>
-                      BUDGET PULSE
-                    </span>
-                    <div style={{ fontFamily:"'Inter', sans-serif", fontWeight:700,
-                      fontSize:"15px", color: budgetRemaining < 0 ? "#ff4444" : T.primary,
-                      textShadow:`0 0 12px ${budgetRemaining < 0 ? "#ff4444" : T.primary}55`,
-                      marginTop: "2px", transition:"color .5s" }}>
-                      {budgetRemaining < 0 ? `-${fmt(Math.abs(budgetRemaining))}` : fmt(budgetRemaining)}
+              {activeTab === "analytics" && (
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1.1fr 0.9fr",
+                  gap:"10px", marginBottom:"20px", animation:"slideIn .55s .12s ease both" }}>
+                  
+                  {/* Budget Pulse */}
+                  <div style={{ position:"relative", background:T.panel,
+                    border:`1px solid ${budgetRemaining < 0 ? "#ff4444" : T.primary}28`, borderRadius:"14px",
+                    padding:"12px 10px", overflow:"hidden", display: "flex", flexDirection: "column", justifyContent: "space-between",
+                    transition:"background .5s, border-color .5s" }}>
+                    <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
+                      background: budgetRemaining < 0 ? "#ff4444" : T.primary, opacity:.7 }}/>
+                    <div>
+                      <span style={{ fontSize:"8px", color:T.dim, fontFamily:"'Inter', sans-serif", letterSpacing:"1px", textTransform:"uppercase" }}>
+                        BUDGET PULSE
+                      </span>
+                      <div style={{ fontFamily:"'Inter', sans-serif", fontWeight:700,
+                        fontSize:"15px", color: budgetRemaining < 0 ? "#ff4444" : T.primary,
+                        textShadow:`0 0 12px ${budgetRemaining < 0 ? "#ff4444" : T.primary}55`,
+                        marginTop: "2px", transition:"color .5s" }}>
+                        {budgetRemaining < 0 ? `-${fmt(Math.abs(budgetRemaining))}` : fmt(budgetRemaining)}
+                      </div>
+                    </div>
+                    <div style={{ fontSize:"8px", color: T.muted, fontFamily:"'Inter', sans-serif", marginTop: "6px" }}>
+                      {budgetRemaining < 0 ? "Exceeded!" : `${budgetUsed.toFixed(0)}% Used`}
                     </div>
                   </div>
-                  <div style={{ fontSize:"8px", color: T.muted, fontFamily:"'Inter', sans-serif", marginTop: "6px" }}>
-                    {budgetRemaining < 0 ? "Exceeded!" : `${budgetUsed.toFixed(0)}% Used`}
-                  </div>
-                </div>
 
-                {/* Highest Day */}
-                <div style={{ position:"relative", background:T.panel,
-                  border:`1px solid ${T.secondary}28`, borderRadius:"14px",
-                  padding:"12px 10px", overflow:"hidden", display: "flex", flexDirection: "column", justifyContent: "space-between",
-                  transition:"background .5s, border-color .5s" }}>
-                  <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
-                    background:T.secondary, opacity:.7 }}/>
-                  <div>
-                    <span style={{ fontSize:"8px", color:T.dim, fontFamily:"'Inter', sans-serif", letterSpacing:"1px", textTransform:"uppercase" }}>
-                      HIGHEST STRIKE
-                    </span>
-                    <div style={{ fontFamily:"'Inter', sans-serif", fontWeight:700,
-                      fontSize:"14px", color:T.secondary,
-                      textShadow:`0 0 12px ${T.secondary}55`,
-                      marginTop: "2px", transition:"color .5s" }}>
-                      {highestDay.date ? dayFormatter.format(highestDay.date) : "None"}
+                  {/* Highest Day */}
+                  <div style={{ position:"relative", background:T.panel,
+                    border:`1px solid ${T.secondary}28`, borderRadius:"14px",
+                    padding:"12px 10px", overflow:"hidden", display: "flex", flexDirection: "column", justifyContent: "space-between",
+                    transition:"background .5s, border-color .5s" }}>
+                    <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
+                      background:T.secondary, opacity:.7 }}/>
+                    <div>
+                      <span style={{ fontSize:"8px", color:T.dim, fontFamily:"'Inter', sans-serif", letterSpacing:"1px", textTransform:"uppercase" }}>
+                        HIGHEST STRIKE
+                      </span>
+                      <div style={{ fontFamily:"'Inter', sans-serif", fontWeight:700,
+                        fontSize:"14px", color:T.secondary,
+                        textShadow:`0 0 12px ${T.secondary}55`,
+                        marginTop: "2px", transition:"color .5s" }}>
+                        {highestDay.date ? dayFormatter.format(highestDay.date) : "None"}
+                      </div>
+                    </div>
+                    <div style={{ fontSize:"8px", color: T.muted, fontFamily:"'Inter', sans-serif", marginTop: "6px" }}>
+                      {highestDay.total > 0 ? `${fmt(highestDay.total)} Spent` : "No strikes"}
                     </div>
                   </div>
-                  <div style={{ fontSize:"8px", color: T.muted, fontFamily:"'Inter', sans-serif", marginTop: "6px" }}>
-                    {highestDay.total > 0 ? `${fmt(highestDay.total)} Spent` : "No strikes"}
-                  </div>
-                </div>
 
-                {/* Daily Allowance */}
-                <div style={{ position:"relative", background:T.panel,
-                  border:`1px solid ${T.accent}28`, borderRadius:"14px",
-                  padding:"12px 10px", overflow:"hidden", display: "flex", flexDirection: "column", justifyContent: "space-between",
-                  transition:"background .5s, border-color .5s" }}>
-                  <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
-                    background:T.accent, opacity:.7 }}/>
-                  <div>
-                    <span style={{ fontSize:"8px", color:T.dim, fontFamily:"'Inter', sans-serif", letterSpacing:"1px", textTransform:"uppercase" }}>
-                      ALLOWANCE
-                    </span>
-                    <div style={{ fontFamily:"'Inter', sans-serif", fontWeight:700,
-                      fontSize:"14px", color:T.accent,
-                      textShadow:`0 0 12px ${T.accent}55`,
-                      marginTop: "2px", transition:"color .5s" }}>
-                      {fmt(dailyAllowanceRemaining)}
+                  {/* Daily Allowance */}
+                  <div style={{ position:"relative", background:T.panel,
+                    border:`1px solid ${T.accent}28`, borderRadius:"14px",
+                    padding:"12px 10px", overflow:"hidden", display: "flex", flexDirection: "column", justifyContent: "space-between",
+                    transition:"background .5s, border-color .5s" }}>
+                    <div style={{ position:"absolute", top:0, left:0, right:0, height:"2px",
+                      background:T.accent, opacity:.7 }}/>
+                    <div>
+                      <span style={{ fontSize:"8px", color:T.dim, fontFamily:"'Inter', sans-serif", letterSpacing:"1px", textTransform:"uppercase" }}>
+                        ALLOWANCE
+                      </span>
+                      <div style={{ fontFamily:"'Inter', sans-serif", fontWeight:700,
+                        fontSize:"14px", color:T.accent,
+                        textShadow:`0 0 12px ${T.accent}55`,
+                        marginTop: "2px", transition:"color .5s" }}>
+                        {fmt(dailyAllowanceRemaining)}
+                      </div>
+                    </div>
+                    <div style={{ fontSize:"8px", color: T.muted, fontFamily:"'Inter', sans-serif", marginTop: "6px" }}>
+                      {daysRemaining} Days Left
                     </div>
                   </div>
-                  <div style={{ fontSize:"8px", color: T.muted, fontFamily:"'Inter', sans-serif", marginTop: "6px" }}>
-                    {daysRemaining} Days Left
-                  </div>
-                </div>
 
-              </div>
+                </div>
+              )}
 
               {/* ── ALLOCATION BAR ── */}
-              <div style={{ marginBottom:"24px", animation:"slideIn .55s .16s ease both" }}>
-                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px",
-                  alignItems:"center" }}>
-                  <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
-                    <MiniKatana color={`${T.primary}77`} size={28}/>
-                    <span style={{ fontFamily:"'Inter', sans-serif", fontSize:"9px",
-                      letterSpacing:"2px", color:`${T.primary}77`, textTransform:"uppercase",
-                      transition:"color .5s" }}>
-                      ENERGY DISTRIBUTION
-                    </span>
-                  </div>
-                  <span style={{ fontFamily:"'Inter', sans-serif",
-                    fontSize:"9px", color:T.muted, transition:"color .5s" }}>
-                    MAY {yearWord}
-                  </span>
-                </div>
-                <div style={{ display:"flex", height:"10px", borderRadius:"5px",
-                  overflow:"hidden", gap:"2px",
-                  border:`1px solid ${T.primary}20`, background:"#040408",
-                  transition:"border-color .5s" }}>
-                  {groupedCategories.map((c,i)=>(
-                    <div key={c.name} title={`${c.name}: ${fmt(c.total)}`}
-                      style={{ height:"100%", borderRadius:"2px", flexShrink:0,
-                        width:pct(c.total, totalSpent || 1)+"%",
-                        background: T.catColors[i % T.catColors.length],
-                        boxShadow:`0 0 8px ${T.catColors[i % T.catColors.length]}66`,
-                        position:"relative", overflow:"hidden",
-                        transition:"background .5s" }}>
-                      <div style={{ position:"absolute", top:0, left:0, right:0, height:"40%",
-                        background:"rgba(255,255,255,0.22)", borderRadius:"2px 2px 0 0" }}/>
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:"8px", marginTop:"10px" }}>
-                  {groupedCategories.map((c,i)=>(
-                    <div key={c.name} style={{ display:"flex", alignItems:"center", gap:"5px" }}>
-                      <div style={{ width:"5px", height:"5px", borderRadius:"50%",
-                        background: T.catColors[i % T.catColors.length],
-                        boxShadow:`0 0 5px ${T.catColors[i % T.catColors.length]}88`,
-                        transition:"background .5s" }}/>
-                      <span style={{ fontSize:"9px", color:T.dim,
-                        fontFamily:"'Inter', sans-serif",
+              {activeTab === "dashboard" && (
+                <div style={{ marginBottom:"24px", animation:"slideIn .55s .16s ease both" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px",
+                    alignItems:"center" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                      <MiniKatana color={`${T.primary}77`} size={28}/>
+                      <span style={{ fontFamily:"'Inter', sans-serif", fontSize:"9px",
+                        letterSpacing:"2px", color:`${T.primary}77`, textTransform:"uppercase",
                         transition:"color .5s" }}>
-                        {c.name.split(" ")[0]}
+                        ENERGY DISTRIBUTION
                       </span>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* ── FILTERS PANEL ── */}
-              <div style={{
-                background: T.panel,
-                border: `1px solid ${T.primary}22`,
-                borderRadius: "14px",
-                padding: "14px",
-                marginBottom: "20px",
-                animation: "slideIn .55s .18s ease both"
-              }}>
-                <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
-                  <MiniKatana color={`${T.primary}77`} size={28}/>
-                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
-                    STRIKE SEARCH & FILTERS
-                  </span>
-                </div>
-                
-                <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                  {/* Search input */}
-                  <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                    <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>SEARCH LOGS</span>
-                    <input
-                      value={query}
-                      onChange={(e) => setQuery(e.target.value)}
-                      placeholder="Strike name, category, or date..."
-                      style={{
-                        background: T.raised,
-                        color: "#fff",
-                        border: `1px solid ${T.primary}22`,
-                        borderRadius: "8px",
-                        padding: "8px 12px",
-                        fontFamily: "'Plus Jakarta Sans', sans-serif",
-                        fontSize: "12px",
-                        outline: "none",
-                        transition: "border-color 0.3s"
-                      }}
-                      onFocus={(e) => e.target.style.borderColor = T.primary}
-                      onBlur={(e) => e.target.style.borderColor = `${T.primary}22`}
-                    />
+                    <span style={{ fontFamily:"'Inter', sans-serif",
+                      fontSize:"9px", color:T.muted, transition:"color .5s" }}>
+                      {monthWord} {yearWord}
+                    </span>
                   </div>
-
-                  {/* Category Select & Actions */}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", alignItems: "flex-end" }}>
-                    <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                      <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>BREATHING FORM</span>
-                      <select
-                        value={selectedCategory}
-                        onChange={(e) => {
-                          setSelectedCategory(e.target.value);
-                          setExpanded({});
-                        }}
-                        style={{
-                          background: T.raised,
-                          color: "#fff",
-                          border: `1px solid ${T.primary}22`,
-                          borderRadius: "8px",
-                          padding: "7px 10px",
-                          fontFamily: "'Inter', sans-serif",
-                          fontSize: "11px",
-                          outline: "none",
-                          cursor: "pointer"
-                        }}
-                      >
-                        <option value="all" style={{ background: T.raised }}>ALL FORMS</option>
-                        {categoryOptions.map((cat) => (
-                          <option key={cat} value={cat} style={{ background: T.raised }}>
-                            {cat.toUpperCase()}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* Filter buttons */}
-                    <div style={{ display: "flex", gap: "6px" }}>
-                      <button
-                        onClick={resetFilters}
-                        type="button"
-                        style={{
-                          flex: 1,
-                          background: "transparent",
-                          color: T.primary,
-                          border: `1px solid ${T.primary}44`,
-                          borderRadius: "8px",
-                          padding: "7px",
-                          fontFamily: "'Inter', sans-serif",
-                          fontSize: "10px",
-                          cursor: "pointer",
-                          transition: "all 0.2s"
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = `${T.primary}11`}
-                        onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                      >
-                        RESET
-                      </button>
-                      <button
-                        onClick={exportToCSV}
-                        type="button"
-                        disabled={visibleTransactions.length === 0}
-                        style={{
-                          flex: 1.2,
-                          background: T.switchBg,
-                          color: T.switchText,
-                          border: "none",
-                          borderRadius: "8px",
-                          padding: "8px",
-                          fontFamily: "'Inter', sans-serif",
-                          fontSize: "10px",
-                          fontWeight: 700,
-                          cursor: "pointer",
-                          opacity: visibleTransactions.length === 0 ? 0.4 : 1,
-                          transition: "all 0.2s"
-                        }}
-                      >
-                        EXPORT CSV
-                      </button>
-                    </div>
+                  <div style={{ display:"flex", height:"10px", borderRadius:"5px",
+                    overflow:"hidden", gap:"2px",
+                    border:`1px solid ${T.primary}20`, background:"#040408",
+                    transition:"border-color .5s" }}>
+                    {groupedCategories.map((c,i)=>(
+                      <div key={c.name} title={`${c.name}: ${fmt(c.total)}`}
+                        style={{ height:"100%", borderRadius:"2px", flexShrink:0,
+                          width:pct(c.total, totalSpent || 1)+"%",
+                          background: T.catColors[i % T.catColors.length],
+                          boxShadow:`0 0 8px ${T.catColors[i % T.catColors.length]}66`,
+                          position:"relative", overflow:"hidden",
+                          transition:"background .5s" }}>
+                        <div style={{ position:"absolute", top:0, left:0, right:0, height:"40%",
+                          background:"rgba(255,255,255,0.22)", borderRadius:"2px 2px 0 0" }}/>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:"8px", marginTop:"10px" }}>
+                    {groupedCategories.map((c,i)=>(
+                      <div key={c.name} style={{ display:"flex", alignItems:"center", gap:"5px" }}>
+                        <div style={{ width:"5px", height:"5px", borderRadius:"50%",
+                          background: T.catColors[i % T.catColors.length],
+                          boxShadow:`0 0 5px ${T.catColors[i % T.catColors.length]}88`,
+                          transition:"background .5s" }}/>
+                        <span style={{ fontSize:"9px", color:T.dim,
+                          fontFamily:"'Inter', sans-serif",
+                          transition:"color .5s" }}>
+                          {c.name.split(" ")[0]}
+                        </span>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* ── SECTION HEADER ── */}
-              <div style={{ display:"flex", alignItems:"center", gap:"8px",
-                marginBottom:"14px", animation:"slideIn .55s .22s ease both" }}>
-                <div style={{ flex:1, height:"1px",
-                  background:`linear-gradient(90deg,transparent,${T.primary}33)`,
-                  transition:"background .5s" }}/>
-                {theme==="zenitsu"
-                  ? <Kunai color={`${T.primary}66`} size={13} rotate={-90}/>
-                  : <Droplet size={11} color={`${T.primary}66`} opacity={0.8}/>}
-                <span style={{ fontFamily:"'Inter', sans-serif", fontSize:"9px",
-                  letterSpacing:"2.5px", color:`${T.primary}66`,
-                  textTransform:"uppercase", whiteSpace:"nowrap",
-                  transition:"color .5s" }}>
-                  BREATHING FORMS
-                </span>
-                {theme==="zenitsu"
-                  ? <Kunai color={`${T.primary}66`} size={13} rotate={90}/>
-                  : <Droplet size={11} color={`${T.primary}66`} opacity={0.8}/>}
-                <div style={{ flex:1, height:"1px",
-                  background:`linear-gradient(90deg,${T.primary}33,transparent)`,
-                  transition:"background .5s" }}/>
-                <span style={{ fontFamily:"'Inter', sans-serif",
-                  fontSize:"9px", color:T.muted, marginLeft:"6px",
-                  transition:"color .5s" }}>
-                  {groupedCategories.length} forms
-                </span>
-              </div>
-
-              {/* ── CATEGORY CARDS ── */}
-              <div style={{ display:"flex", flexDirection:"column", gap:"10px", marginBottom:"40px" }}>
-                {groupedCategories.map((category, idx) => {
-                  const isOpen = !!expanded[category.name];
-                  const share = pct(category.total, totalSpent || 1);
-                  const cc = T.catColors[idx % T.catColors.length];
-                  
-                  // Get dynamic emoji and breathing form details
-                  const catDetails = getCategoryDetails(category.name, idx);
-                  
-                  const hasCatBudget = categoryBudgets[category.name] !== undefined && categoryBudgets[category.name] > 0;
-                  const catBudgetVal = hasCatBudget ? categoryBudgets[category.name] : 0;
-                  const catUsagePercent = hasCatBudget ? (category.total / catBudgetVal) * 100 : 0;
-
-                  // Dynamic color based on budget status
-                  let fillBg = cc;
-                  if (hasCatBudget) {
-                    if (catUsagePercent >= 90) fillBg = "#ff4444";
-                    else if (catUsagePercent >= 70) fillBg = T.secondary;
-                    else fillBg = T.accent;
-                  }
-
-                  return (
-                    <div key={category.name} className="ds-card"
-                      onClick={() => toggle(category.name)}
-                      style={{
-                        position:"relative",
-                        background: isOpen ? T.raised : T.panel,
-                        border:`1px solid ${isOpen ? cc+"55" : T.border}`,
-                        borderRadius:"14px", overflow:"hidden",
-                        cursor:"pointer",
-                        transition:"border-color .25s, background .25s",
-                        animation:`slideIn .5s ${.28+idx*.055}s ease both`,
-                      }}>
-
-                      {/* Haori stripe top */}
-                      <div style={{ position:"absolute", top:0, left:0, right:0, height:"3px",
-                        background:`repeating-linear-gradient(${T.haoriAngle},${cc} 0,${cc} 10px,transparent 10px,transparent 20px)`,
-                        opacity: isOpen ? 0.8 : 0.3, transition:"opacity .25s, background .5s" }}/>
-
-                      {/* Left strip */}
-                      <div style={{ position:"absolute", left:0, top:"14%", bottom:"14%",
-                        width:"3px", borderRadius:"0 3px 3px 0",
-                        background:cc,
-                        boxShadow:`0 0 10px ${cc}99, 0 0 22px ${cc}44`,
-                        transition:"background .5s, box-shadow .5s" }}/>
-
-                      {/* Kunai watermark */}
-                      <div className="kunai-wm" style={{ position:"absolute", right:"6px", top:"6px",
-                        opacity:0.06, transition:"opacity .2s",
-                        transform:"rotate(-45deg)" }}>
-                        <Kunai color={cc} size={20} rotate={0}/>
-                      </div>
-
-                      {/* Shine on hover */}
-                      <div className="card-shine" style={{ position:"absolute", top:0, bottom:0,
-                        width:"40%",
-                        background:`linear-gradient(90deg,transparent,${cc}08,transparent)`,
-                        left:"-100%", pointerEvents:"none" }}/>
-
-                      {isOpen && (
-                        <div style={{ position:"absolute", inset:0, pointerEvents:"none",
-                          background:`radial-gradient(ellipse at top left,${cc}0e,transparent 55%)` }}/>
-                      )}
-
-                      <div style={{ padding:"14px 14px 14px 18px" }}>
-                        <div style={{ display:"flex", justifyContent:"space-between",
-                          alignItems:"center", marginBottom:"10px" }}>
-                          <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
-                            <div style={{ width:"42px", height:"42px",
-                              background:T.raised, borderRadius:"10px",
-                              display:"flex", alignItems:"center", justifyContent:"center",
-                              fontSize:"19px", flexShrink:0,
-                              border:`1px solid ${cc}44`,
-                              boxShadow:`0 0 14px ${cc}30`,
-                              position:"relative", overflow:"hidden",
-                              transition:"background .5s, border-color .5s" }}>
-                              <div style={{ position:"absolute", bottom:0, left:0, right:0, height:"5px",
-                                background:`repeating-linear-gradient(${T.haoriAngle},${cc}55 0,${cc}55 4px,transparent 4px,transparent 8px)` }}/>
-                              {catDetails.emoji}
-                            </div>
-                            <div>
-                              <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"2px" }}>
-                                <span style={{ fontSize:"14px", fontWeight:700, color:"#d0cce8",
-                                  fontFamily:"'Plus Jakarta Sans', sans-serif", letterSpacing:"0.5px" }}>
-                                  {category.name}
-                                </span>
-                                <span style={{ fontFamily:"'Noto Serif JP',serif",
-                                  fontSize:"10px", color:cc+"88",
-                                  padding:"1px 5px",
-                                  border:`1px solid ${cc}30`,
-                                  borderRadius:"4px",
-                                  background:`${cc}0c`,
-                                  transition:"color .5s, border-color .5s" }}>
-                                  {catDetails.form}
-                                </span>
-                              </div>
-                              <div style={{ display:"flex", alignItems:"center", gap:"5px" }}>
-                                <MiniKatana color={cc+"77"} size={28}/>
-                                <span style={{ fontSize:"10px",
-                                  fontFamily:"'Inter', sans-serif",
-                                  color:cc+"77", letterSpacing:"0.4px",
-                                  transition:"color .5s" }}>
-                                  {category.items.length} strikes · {share}%
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                          <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
-                            <span style={{ fontSize:"16px", fontWeight:700,
-                              fontFamily:"'Inter', sans-serif",
-                              color:cc, textShadow:`0 0 14px ${cc}aa`,
-                              transition:"color .5s, text-shadow .5s" }}>
-                              {fmt(category.total)}
-                            </span>
-                            <div style={{ width:"24px", height:"24px",
-                              border:`1px solid ${cc}44`, borderRadius:"6px",
-                              background:`${cc}0c`,
-                              display:"flex", alignItems:"center", justifyContent:"center",
-                              transition:"transform .25s, border-color .5s",
-                              transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
-                              <span style={{ color:cc, fontSize:"13px", lineHeight:1,
-                                transition:"color .5s" }}>▾</span>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Progress bar */}
-                        <div style={{ height:"5px", background:T.border,
-                          borderRadius:"3px", overflow:"hidden" }}>
-                          <div style={{ height:"100%", borderRadius:"3px",
-                            width:`${hasCatBudget ? Math.min(catUsagePercent, 100) : share}%`,
-                            background: `linear-gradient(90deg, ${fillBg}66, ${fillBg})`,
-                            boxShadow:`0 0 12px ${fillBg}88`,
-                            transition:"width .5s ease, background .5s",
-                            position:"relative", overflow:"hidden" }}>
-                            <div style={{ position:"absolute", top:0, left:0, right:0, height:"45%",
-                              background:"rgba(255,255,255,0.28)", borderRadius:"3px 3px 0 0" }}/>
-                          </div>
-                        </div>
-
-                        {/* Progress Details */}
-                        <div style={{ display:"flex", justifyContent:"space-between", marginTop:"4px" }}>
-                          <span style={{ fontSize:"9px", fontFamily:"'Inter', sans-serif",
-                            color:cc+"88", transition:"color .5s" }}>
-                            {hasCatBudget ? `${catUsagePercent.toFixed(0)}% of limit` : `${share}% energy`}
-                          </span>
-                          <span style={{ fontSize:"9px", fontFamily:"'Inter', sans-serif",
-                            color:T.muted, transition:"color .5s" }}>
-                            {hasCatBudget ? `${fmt(category.total)} / ${fmt(catBudgetVal)}` : `${fmt(category.total)}`}
-                          </span>
-                        </div>
-
-                        {/* Category Budget Form & Set Budget Panel */}
-                        {isOpen && (
-                          <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: `1px dashed ${cc}22` }}>
-                            {editingCategory === category.name ? (
-                              <form
-                                onSubmit={(e) => {
-                                  e.preventDefault();
-                                  handleSaveCategoryBudget(category.name);
-                                }}
-                                onClick={(e) => e.stopPropagation()}
-                                style={{ display: "flex", gap: "6px", alignItems: "center" }}
-                              >
-                                <input
-                                  required
-                                  type="number"
-                                  min="1"
-                                  placeholder="Set cap ₹..."
-                                  value={editingBudgetVal}
-                                  onChange={(e) => setEditingBudgetVal(e.target.value)}
-                                  autoFocus
-                                  style={{
-                                    flex: 1,
-                                    background: T.raised,
-                                    color: "#fff",
-                                    border: `1px solid ${cc}44`,
-                                    borderRadius: "6px",
-                                    padding: "4px 8px",
-                                    fontSize: "11px",
-                                    outline: "none",
-                                    fontFamily: "'Inter', sans-serif"
-                                  }}
-                                />
-                                <button
-                                  type="submit"
-                                  style={{
-                                    background: cc,
-                                    color: "#0a0a14",
-                                    border: "none",
-                                    borderRadius: "6px",
-                                    padding: "4px 10px",
-                                    fontSize: "10px",
-                                    fontWeight: 700,
-                                    cursor: "pointer",
-                                    fontFamily: "'Inter', sans-serif"
-                                  }}
-                                >
-                                  SAVE
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingCategory(null);
-                                    setEditingBudgetVal("");
-                                  }}
-                                  style={{
-                                    background: "transparent",
-                                    color: T.muted,
-                                    border: `1px solid ${T.muted}`,
-                                    borderRadius: "6px",
-                                    padding: "4px 8px",
-                                    fontSize: "10px",
-                                    cursor: "pointer",
-                                    fontFamily: "'Inter', sans-serif"
-                                  }}
-                                >
-                                  CANCEL
-                                </button>
-                              </form>
-                            ) : (
-                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <span style={{ fontSize: "9px", color: T.dim, fontFamily: "'Inter', sans-serif" }}>
-                                  {hasCatBudget ? `FORM ENERGY CAP: ${fmt(catBudgetVal)}` : "NO BUDGET LIMIT SET"}
-                                </span>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setEditingCategory(category.name);
-                                    setEditingBudgetVal(hasCatBudget ? String(catBudgetVal) : "");
-                                  }}
-                                  style={{
-                                    background: "transparent",
-                                    border: `1px solid ${cc}33`,
-                                    color: cc,
-                                    borderRadius: "4px",
-                                    padding: "2px 6px",
-                                    fontSize: "9px",
-                                    cursor: "pointer",
-                                    fontFamily: "'Inter', sans-serif",
-                                    transition: "all 0.2s"
-                                  }}
-                                >
-                                  {hasCatBudget ? "✏️ EDIT CAP" : "➕ SET CAP"}
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Transactions list */}
-                        {isOpen && (
-                          <div style={{ marginTop:"14px" }}>
-                            <div style={{ display:"flex", alignItems:"center", gap:"8px",
-                              borderTop:`1px solid ${cc}22`,
-                              paddingTop:"10px", marginBottom:"10px" }}>
-                              {theme==="zenitsu"
-                                ? <Bolt size={10} color={cc+"88"}/>
-                                : <Droplet size={9} color={cc} opacity={0.7}/>}
-                              <span style={{ fontFamily:"'Inter', sans-serif",
-                                fontSize:"8px", letterSpacing:"2px",
-                                color:cc+"77", textTransform:"uppercase",
-                                transition:"color .5s" }}>
-                                STRIKE LOG
-                              </span>
-                              <div style={{ flex:1, height:"1px",
-                                background:`linear-gradient(90deg,${cc}22,transparent)` }}/>
-                              {theme==="tanjiro"
-                                ? <WaterWave color={cc} width={40} opacity={0.4}/>
-                                : <Wisteria size={13} opacity={0.4}/>}
-                            </div>
-                            {category.items.map((tx,i)=>(
-                              <div key={tx.id} style={{ display:"flex", justifyContent:"space-between",
-                                alignItems:"center",
-                                paddingBottom:"8px", marginBottom:"4px",
-                                borderBottom: i<category.items.length-1 ? `1px solid ${cc}12` : "none" }}>
-                                <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
-                                  <div style={{ width:"5px", height:"5px", borderRadius:"50%",
-                                    background:cc, boxShadow:`0 0 5px ${cc}99`, flexShrink:0 }}/>
-                                  <div>
-                                    <div style={{ fontSize:"12px", color:"#6a6a9a",
-                                      fontFamily:"'Inter', sans-serif" }}>{tx.name}</div>
-                                    <div style={{ fontSize:"10px", color:T.muted,
-                                      fontFamily:"'Inter', sans-serif", marginTop:"1px",
-                                      transition:"color .5s" }}>
-                                      {tx.dateLabel} <span style={{ color: `${cc}55` }}>•</span> {tx.paymentType || "NA"}
-                                    </div>
-                                  </div>
-                                </div>
-                                <span style={{ fontSize:"13px", fontWeight:600,
-                                  fontFamily:"'Inter', sans-serif",
-                                  color:cc, textShadow:`0 0 10px ${cc}55`,
-                                  transition:"color .5s" }}>
-                                  {fmt(tx.amount)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* ── ANALYTICS SCROLLS ── */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "30px", animation: "slideIn .55s .3s ease both" }}>
-                
-                {/* Daily spend rhythm */}
+              {/* ── RECENT STRIKES LOG ── */}
+              {activeTab === "dashboard" && (
                 <div style={{
                   background: T.panel,
                   border: `1px solid ${T.primary}22`,
                   borderRadius: "14px",
                   padding: "16px",
+                  marginBottom: "20px",
+                  animation: "slideIn 0.55s 0.18s ease both"
                 }}>
                   <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
                     <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
                       <MiniKatana color={`${T.primary}77`} size={28}/>
                       <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
-                        DAILY STRIKE RHYTHM
+                        RECENT STRIKES
                       </span>
                     </div>
-                    <span style={{ fontSize: "8px", color: T.muted, fontFamily: "'Inter', sans-serif" }}>
-                      SPEND BY DAY
-                    </span>
+                    <button
+                      onClick={() => setActiveTab("forms")}
+                      type="button"
+                      style={{
+                        background: "transparent",
+                        border: "none",
+                        color: T.primary,
+                        fontSize: "9px",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        fontFamily: "'Inter', sans-serif",
+                        letterSpacing: "1.5px"
+                      }}
+                    >
+                      VIEW ALL ⚔️
+                    </button>
                   </div>
 
-                  {dailySpend.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "20px", color: T.muted, fontSize: "11px", fontFamily: "'Inter', sans-serif" }}>
-                      NO STRIKES RECORDED FOR THIS MONTH
+                  {combinedTransactions.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "16px", color: T.muted, fontSize: "11px", fontFamily: "'Inter', sans-serif" }}>
+                      NO STRIKES LOGGED YET
                     </div>
                   ) : (
-                    <div style={{ display: "flex", alignItems: "flex-end", height: "80px", gap: "4px", padding: "10px 0 2px", overflowX: "auto", overflowY: "hidden" }}>
-                      {dailySpend.map((day) => {
-                        const percent = (day.total / maxDailySpend) * 100;
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      {combinedTransactions.slice(0, 5).map((tx, idx) => {
+                        const catDetails = getCategoryDetails(tx.category, idx);
+                        const cc = T.catColors[idx % T.catColors.length];
                         return (
-                          <div key={day.date.toISOString()} style={{
-                            flex: 1,
+                          <div key={tx.id} style={{
                             display: "flex",
-                            flexDirection: "column",
+                            justifyContent: "space-between",
                             alignItems: "center",
-                            minWidth: "12px",
-                            height: "100%"
+                            background: T.raised,
+                            border: `1px solid ${T.border}`,
+                            borderRadius: "10px",
+                            padding: "10px 12px"
                           }}>
-                            <div
-                              title={`${dayFormatter.format(day.date)}: ${fmt(day.total)}`}
-                              style={{
-                                width: "100%",
-                                height: `${Math.max(percent, 6)}%`,
-                                background: `linear-gradient(to top, ${T.secondary}77, ${T.primary})`,
-                                boxShadow: `0 0 6px ${T.primary}55`,
-                                borderRadius: "3px 3px 0 0",
-                                transition: "height 0.4s ease, background 0.5s",
-                                position: "relative"
-                              }}
-                            />
-                            <span style={{ fontSize: "8px", color: T.dim, fontFamily: "'Inter', sans-serif", marginTop: "4px" }}>
-                              {day.date.getDate()}
+                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                              <span style={{ fontSize: "16px" }}>{catDetails.emoji}</span>
+                              <div>
+                                <div style={{ fontSize: "12px", fontWeight: 600, color: "#d0cce8", fontFamily: "'Inter', sans-serif" }}>
+                                  {tx.name}
+                                </div>
+                                <div style={{ fontSize: "9px", color: T.muted, fontFamily: "'Inter', sans-serif", marginTop: "1px" }}>
+                                  {tx.dateLabel} • {tx.paymentType || "NA"} • <span style={{ color: cc }}>{tx.category}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <span style={{ fontSize: "13px", fontWeight: 700, color: cc, fontFamily: "'Inter', sans-serif" }}>
+                              {fmt(tx.amount)}
                             </span>
                           </div>
                         );
@@ -2092,95 +1823,619 @@ export default function App() {
                     </div>
                   )}
                 </div>
+              )}
 
-                {/* Monthly Compare */}
-                <div style={{
-                  background: T.panel,
-                  border: `1px solid ${T.primary}22`,
-                  borderRadius: "14px",
-                  padding: "16px",
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+              {/* ── FILTERS PANEL ── */}
+              {activeTab === "forms" && (
+                <>
+                  <div style={{
+                    background: T.panel,
+                    border: `1px solid ${T.primary}22`,
+                    borderRadius: "14px",
+                    padding: "14px",
+                    marginBottom: "20px",
+                    animation: "slideIn .55s .18s ease both"
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "10px" }}>
                       <MiniKatana color={`${T.primary}77`} size={28}/>
                       <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
-                        CHRONOLOGY OF STRIKES
+                        STRIKE SEARCH & FILTERS
                       </span>
                     </div>
-                    <span style={{ fontSize: "8px", color: T.muted, fontFamily: "'Inter', sans-serif" }}>
-                      MONTH COMPARISON
+                    
+                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                      {/* Search input */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>SEARCH LOGS</span>
+                        <input
+                          value={query}
+                          onChange={(e) => setQuery(e.target.value)}
+                          placeholder="Strike name, category, or date..."
+                          style={{
+                            background: T.raised,
+                            color: "#fff",
+                            border: `1px solid ${T.primary}22`,
+                            borderRadius: "8px",
+                            padding: "8px 12px",
+                            fontFamily: "'Plus Jakarta Sans', sans-serif",
+                            fontSize: "12px",
+                            outline: "none",
+                            transition: "border-color 0.3s"
+                          }}
+                          onFocus={(e) => e.target.style.borderColor = T.primary}
+                          onBlur={(e) => e.target.style.borderColor = `${T.primary}22`}
+                        />
+                      </div>
+
+                      {/* Category Select & Actions */}
+                      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", alignItems: "flex-end" }}>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>BREATHING FORM</span>
+                          <select
+                            value={selectedCategory}
+                            onChange={(e) => {
+                              setSelectedCategory(e.target.value);
+                              setExpanded({});
+                            }}
+                            style={{
+                              background: T.raised,
+                              color: "#fff",
+                              border: `1px solid ${T.primary}22`,
+                              borderRadius: "8px",
+                              padding: "7px 10px",
+                              fontFamily: "'Inter', sans-serif",
+                              fontSize: "11px",
+                              outline: "none",
+                              cursor: "pointer"
+                            }}
+                          >
+                            <option value="all" style={{ background: T.raised }}>ALL FORMS</option>
+                            {categoryOptions.map((cat) => (
+                              <option key={cat} value={cat} style={{ background: T.raised }}>
+                                {cat.toUpperCase()}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* Filter buttons */}
+                        <div style={{ display: "flex", gap: "6px" }}>
+                          <button
+                            onClick={resetFilters}
+                            type="button"
+                            style={{
+                              flex: 1,
+                              background: "transparent",
+                              color: T.primary,
+                              border: `1px solid ${T.primary}44`,
+                              borderRadius: "8px",
+                              padding: "7px",
+                              fontFamily: "'Inter', sans-serif",
+                              fontSize: "10px",
+                              cursor: "pointer",
+                              transition: "all 0.2s"
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = `${T.primary}11`}
+                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                          >
+                            RESET
+                          </button>
+                          <button
+                            onClick={exportToCSV}
+                            type="button"
+                            disabled={visibleTransactions.length === 0}
+                            style={{
+                              flex: 1.2,
+                              background: T.switchBg,
+                              color: T.switchText,
+                              border: "none",
+                              borderRadius: "8px",
+                              padding: "8px",
+                              fontFamily: "'Inter', sans-serif",
+                              fontSize: "10px",
+                              fontWeight: 700,
+                              cursor: "pointer",
+                              opacity: visibleTransactions.length === 0 ? 0.4 : 1,
+                              transition: "all 0.2s"
+                            }}
+                          >
+                            EXPORT CSV
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* ── SECTION HEADER ── */}
+                  <div style={{ display:"flex", alignItems:"center", gap:"8px",
+                    marginBottom:"14px", animation:"slideIn .55s .22s ease both" }}>
+                    <div style={{ flex:1, height:"1px",
+                      background:`linear-gradient(90deg,transparent,${T.primary}33)`,
+                      transition:"background .5s" }}/>
+                    {theme==="zenitsu"
+                      ? <Kunai color={`${T.primary}66`} size={13} rotate={-90}/>
+                      : <Droplet size={11} color={`${T.primary}66`} opacity={0.8}/>}
+                    <span style={{ fontFamily:"'Inter', sans-serif", fontSize:"9px",
+                      letterSpacing:"2.5px", color:`${T.primary}66`,
+                      textTransform:"uppercase", whiteSpace:"nowrap",
+                      transition:"color .5s" }}>
+                      BREATHING FORMS
+                    </span>
+                    {theme==="zenitsu"
+                      ? <Kunai color={`${T.primary}66`} size={13} rotate={90}/>
+                      : <Droplet size={11} color={`${T.primary}66`} opacity={0.8}/>}
+                    <div style={{ flex:1, height:"1px",
+                      background:`linear-gradient(90deg,${T.primary}33,transparent)`,
+                      transition:"background .5s" }}/>
+                    <span style={{ fontFamily:"'Inter', sans-serif",
+                      fontSize:"9px", color:T.muted, marginLeft:"6px",
+                      transition:"color .5s" }}>
+                      {groupedCategories.length} forms
                     </span>
                   </div>
 
-                  {monthlySpend.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "20px", color: T.muted, fontSize: "11px", fontFamily: "'Inter', sans-serif" }}>
-                      NO HISTORY FOUND
+                  {/* ── CATEGORY CARDS ── */}
+                  <div style={{ display:"flex", flexDirection:"column", gap:"10px", marginBottom:"40px" }}>
+                    {groupedCategories.map((category, idx) => {
+                      const isOpen = !!expanded[category.name];
+                      const share = pct(category.total, totalSpent || 1);
+                      const cc = T.catColors[idx % T.catColors.length];
+                      
+                      // Get dynamic emoji and breathing form details
+                      const catDetails = getCategoryDetails(category.name, idx);
+                      
+                      const hasCatBudget = categoryBudgets[category.name] !== undefined && categoryBudgets[category.name] > 0;
+                      const catBudgetVal = hasCatBudget ? categoryBudgets[category.name] : 0;
+                      const catUsagePercent = hasCatBudget ? (category.total / catBudgetVal) * 100 : 0;
+
+                      // Dynamic color based on budget status
+                      let fillBg = cc;
+                      if (hasCatBudget) {
+                        if (catUsagePercent >= 90) fillBg = "#ff4444";
+                        else if (catUsagePercent >= 70) fillBg = T.secondary;
+                        else fillBg = T.accent;
+                      }
+
+                      return (
+                        <div key={category.name} className="ds-card"
+                          onClick={() => toggle(category.name)}
+                          style={{
+                            position:"relative",
+                            background: isOpen ? T.raised : T.panel,
+                            border:`1px solid ${isOpen ? cc+"55" : T.border}`,
+                            borderRadius:"14px", overflow:"hidden",
+                            cursor:"pointer",
+                            transition:"border-color .25s, background .25s",
+                            animation:`slideIn .5s ${.28+idx*.055}s ease both`,
+                          }}>
+
+                          {/* Haori stripe top */}
+                          <div style={{ position:"absolute", top:0, left:0, right:0, height:"3px",
+                            background:`repeating-linear-gradient(${T.haoriAngle},${cc} 0,${cc} 10px,transparent 10px,transparent 20px)`,
+                            opacity: isOpen ? 0.8 : 0.3, transition:"opacity .25s, background .5s" }}/>
+
+                          {/* Left strip */}
+                          <div style={{ position:"absolute", left:0, top:"14%", bottom:"14%",
+                            width:"3px", borderRadius:"0 3px 3px 0",
+                            background:cc,
+                            boxShadow:`0 0 10px ${cc}99, 0 0 22px ${cc}44`,
+                            transition:"background .5s, box-shadow .5s" }}/>
+
+                          {/* Kunai watermark */}
+                          <div className="kunai-wm" style={{ position:"absolute", right:"6px", top:"6px",
+                            opacity:0.06, transition:"opacity .2s",
+                            transform:"rotate(-45deg)" }}>
+                            <Kunai color={cc} size={20} rotate={0}/>
+                          </div>
+
+                          {/* Shine on hover */}
+                          <div className="card-shine" style={{ position:"absolute", top:0, bottom:0,
+                            width:"40%",
+                            background:`linear-gradient(90deg,transparent,${cc}08,transparent)`,
+                            left:"-100%", pointerEvents:"none" }}/>
+
+                          {isOpen && (
+                            <div style={{ position:"absolute", inset:0, pointerEvents:"none",
+                              background:`radial-gradient(ellipse at top left,${cc}0e,transparent 55%)` }}/>
+                          )}
+
+                          <div style={{ padding:"14px 14px 14px 18px" }}>
+                            <div style={{ display:"flex", justifyContent:"space-between",
+                              alignItems:"center", marginBottom:"10px" }}>
+                              <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+                                <div style={{ width:"42px", height:"42px",
+                                  background:T.raised, borderRadius:"10px",
+                                  display:"flex", alignItems:"center", justifyContent:"center",
+                                  fontSize:"19px", flexShrink:0,
+                                  border:`1px solid ${cc}44`,
+                                  boxShadow:`0 0 14px ${cc}30`,
+                                  position:"relative", overflow:"hidden",
+                                  transition:"background .5s, border-color .5s" }}>
+                                  <div style={{ position:"absolute", bottom:0, left:0, right:0, height:"5px",
+                                    background:`repeating-linear-gradient(${T.haoriAngle},${cc}55 0,${cc}55 4px,transparent 4px,transparent 8px)` }}/>
+                                  {catDetails.emoji}
+                                </div>
+                                <div>
+                                  <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"2px" }}>
+                                    <span style={{ fontSize:"14px", fontWeight:700, color:"#d0cce8",
+                                      fontFamily:"'Plus Jakarta Sans', sans-serif", letterSpacing:"0.5px" }}>
+                                      {category.name}
+                                    </span>
+                                    <span style={{ fontFamily:"'Noto Serif JP',serif",
+                                      fontSize:"10px", color:cc+"88",
+                                      padding:"1px 5px",
+                                      border:`1px solid ${cc}30`,
+                                      borderRadius:"4px",
+                                      background:`${cc}0c`,
+                                      transition:"color .5s, border-color .5s" }}>
+                                      {catDetails.form}
+                                    </span>
+                                  </div>
+                                  <div style={{ display:"flex", alignItems:"center", gap:"5px" }}>
+                                    <MiniKatana color={cc+"77"} size={28}/>
+                                    <span style={{ fontSize:"10px",
+                                      fontFamily:"'Inter', sans-serif",
+                                      color:cc+"77", letterSpacing:"0.4px",
+                                      transition:"color .5s" }}>
+                                      {category.items.length} strikes · {share}%
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+                                <span style={{ fontSize:"16px", fontWeight:700,
+                                  fontFamily:"'Inter', sans-serif",
+                                  color:cc, textShadow:`0 0 14px ${cc}aa`,
+                                  transition:"color .5s, text-shadow .5s" }}>
+                                  {fmt(category.total)}
+                                </span>
+                                <div style={{ width:"24px", height:"24px",
+                                  border:`1px solid ${cc}44`, borderRadius:"6px",
+                                  background:`${cc}0c`,
+                                  display:"flex", alignItems:"center", justifyContent:"center",
+                                  transition:"transform .25s, border-color .5s",
+                                  transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                                  <span style={{ color:cc, fontSize:"13px", lineHeight:1,
+                                    transition:"color .5s" }}>▾</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Progress bar */}
+                            <div style={{ height:"5px", background:T.border,
+                              borderRadius:"3px", overflow:"hidden" }}>
+                              <div style={{ height:"100%", borderRadius:"3px",
+                                width:`${hasCatBudget ? Math.min(catUsagePercent, 100) : share}%`,
+                                background: `linear-gradient(90deg, ${fillBg}66, ${fillBg})`,
+                                boxShadow:`0 0 12px ${fillBg}88`,
+                                transition:"width .5s ease, background .5s",
+                                position:"relative", overflow:"hidden" }}>
+                                <div style={{ position:"absolute", top:0, left:0, right:0, height:"45%",
+                                  background:"rgba(255,255,255,0.28)", borderRadius:"3px 3px 0 0" }}/>
+                              </div>
+                            </div>
+
+                            {/* Progress Details */}
+                            <div style={{ display:"flex", justifyContent:"space-between", marginTop:"4px" }}>
+                              <span style={{ fontSize:"9px", fontFamily:"'Inter', sans-serif",
+                                color:cc+"88", transition:"color .5s" }}>
+                                {hasCatBudget ? `${catUsagePercent.toFixed(0)}% of limit` : `${share}% energy`}
+                              </span>
+                              <span style={{ fontSize:"9px", fontFamily:"'Inter', sans-serif",
+                                color:T.muted, transition:"color .5s" }}>
+                                {hasCatBudget ? `${fmt(category.total)} / ${fmt(catBudgetVal)}` : `${fmt(category.total)}`}
+                              </span>
+                            </div>
+
+                            {/* Category Budget Form & Set Budget Panel */}
+                            {isOpen && (
+                              <div style={{ marginTop: "12px", paddingTop: "10px", borderTop: `1px dashed ${cc}22` }}>
+                                {editingCategory === category.name ? (
+                                  <form
+                                    onSubmit={(e) => {
+                                      e.preventDefault();
+                                      handleSaveCategoryBudget(category.name);
+                                    }}
+                                    onClick={(e) => e.stopPropagation()}
+                                    style={{ display: "flex", gap: "6px", alignItems: "center" }}
+                                  >
+                                    <input
+                                      required
+                                      type="number"
+                                      min="1"
+                                      placeholder="Set cap ₹..."
+                                      value={editingBudgetVal}
+                                      onChange={(e) => setEditingBudgetVal(e.target.value)}
+                                      autoFocus
+                                      style={{
+                                        flex: 1,
+                                        background: T.raised,
+                                        color: "#fff",
+                                        border: `1px solid ${cc}44`,
+                                        borderRadius: "6px",
+                                        padding: "4px 8px",
+                                        fontSize: "11px",
+                                        outline: "none",
+                                        fontFamily: "'Inter', sans-serif"
+                                      }}
+                                    />
+                                    <button
+                                      type="submit"
+                                      style={{
+                                        background: cc,
+                                        color: "#0a0a14",
+                                        border: "none",
+                                        borderRadius: "6px",
+                                        padding: "4px 10px",
+                                        fontSize: "10px",
+                                        fontWeight: 700,
+                                        cursor: "pointer",
+                                        fontFamily: "'Inter', sans-serif"
+                                      }}
+                                    >
+                                      SAVE
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingCategory(null);
+                                        setEditingBudgetVal("");
+                                      }}
+                                      style={{
+                                        background: "transparent",
+                                        color: T.muted,
+                                        border: `1px solid ${T.muted}`,
+                                        borderRadius: "6px",
+                                        padding: "4px 8px",
+                                        fontSize: "10px",
+                                        cursor: "pointer",
+                                        fontFamily: "'Inter', sans-serif"
+                                      }}
+                                    >
+                                      CANCEL
+                                    </button>
+                                  </form>
+                                ) : (
+                                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    <span style={{ fontSize: "9px", color: T.dim, fontFamily: "'Inter', sans-serif" }}>
+                                      {hasCatBudget ? `FORM ENERGY CAP: ${fmt(catBudgetVal)}` : "NO BUDGET LIMIT SET"}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setEditingCategory(category.name);
+                                        setEditingBudgetVal(hasCatBudget ? String(catBudgetVal) : "");
+                                      }}
+                                      style={{
+                                        background: "transparent",
+                                        border: `1px solid ${cc}33`,
+                                        color: cc,
+                                        borderRadius: "4px",
+                                        padding: "2px 6px",
+                                        fontSize: "9px",
+                                        cursor: "pointer",
+                                        fontFamily: "'Inter', sans-serif",
+                                        transition: "all 0.2s"
+                                      }}
+                                    >
+                                      {hasCatBudget ? "✏️ EDIT CAP" : "➕ SET CAP"}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Transactions list */}
+                            {isOpen && (
+                              <div style={{ marginTop:"14px" }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:"8px",
+                                  borderTop:`1px solid ${cc}22`,
+                                  paddingTop:"10px", marginBottom:"10px" }}>
+                                  {theme==="zenitsu"
+                                    ? <Bolt size={10} color={cc+"88"}/>
+                                    : <Droplet size={9} color={cc} opacity={0.7}/>}
+                                  <span style={{ fontFamily:"'Inter', sans-serif",
+                                    fontSize:"8px", letterSpacing:"2px",
+                                    color:cc+"77", textTransform:"uppercase",
+                                    transition:"color .5s" }}>
+                                    STRIKE LOG
+                                  </span>
+                                  <div style={{ flex:1, height:"1px",
+                                    background:`linear-gradient(90deg,${cc}22,transparent)` }}/>
+                                  {theme==="tanjiro"
+                                    ? <WaterWave color={cc} width={40} opacity={0.4}/>
+                                    : <Wisteria size={13} opacity={0.4}/>}
+                                </div>
+                                {category.items.map((tx,i)=>(
+                                  <div key={tx.id} style={{ display:"flex", justifyContent:"space-between",
+                                    alignItems:"center",
+                                    paddingBottom:"8px", marginBottom:"4px",
+                                    borderBottom: i<category.items.length-1 ? `1px solid ${cc}12` : "none" }}>
+                                    <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+                                      <div style={{ width:"5px", height:"5px", borderRadius:"50%",
+                                        background:cc, boxShadow:`0 0 5px ${cc}99`, flexShrink:0 }}/>
+                                      <div>
+                                        <div style={{ fontSize:"12px", color:"#6a6a9a",
+                                          fontFamily:"'Inter', sans-serif" }}>{tx.name}</div>
+                                        <div style={{ fontSize:"10px", color:T.muted,
+                                          fontFamily:"'Inter', sans-serif", marginTop:"1px",
+                                          transition:"color .5s" }}>
+                                          {tx.dateLabel} <span style={{ color: `${cc}55` }}>•</span> {tx.paymentType || "NA"}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <span style={{ fontSize:"13px", fontWeight:600,
+                                      fontFamily:"'Inter', sans-serif",
+                                      color:cc, textShadow:`0 0 10px ${cc}55`,
+                                      transition:"color .5s" }}>
+                                      {fmt(tx.amount)}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+
+              {/* ── ANALYTICS SCROLLS ── */}
+              {activeTab === "analytics" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "30px", animation: "slideIn .55s .3s ease both" }}>
+                  
+                  {/* Daily spend rhythm */}
+                  <div style={{
+                    background: T.panel,
+                    border: `1px solid ${T.primary}22`,
+                    borderRadius: "14px",
+                    padding: "16px",
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <MiniKatana color={`${T.primary}77`} size={28}/>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
+                          DAILY STRIKE RHYTHM
+                        </span>
+                      </div>
+                      <span style={{ fontSize: "8px", color: T.muted, fontFamily: "'Inter', sans-serif" }}>
+                        SPEND BY DAY
+                      </span>
                     </div>
-                  ) : (
-                    <div style={{ display: "flex", alignItems: "flex-end", height: "90px", gap: "10px", padding: "10px 0 2px" }}>
-                      {monthlySpend.map((month) => {
-                        const isActive = month.key === activeMonth;
-                        const percent = (month.total / maxMonthlySpend) * 100;
-                        return (
-                          <button
-                            key={month.key}
-                            onClick={() => {
-                              setSelectedMonth(month.key);
-                              resetFilters();
-                            }}
-                            type="button"
-                            style={{
+
+                    {dailySpend.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "20px", color: T.muted, fontSize: "11px", fontFamily: "'Inter', sans-serif" }}>
+                        NO STRIKES RECORDED FOR THIS MONTH
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "flex-end", height: "80px", gap: "4px", padding: "10px 0 2px", overflowX: "auto", overflowY: "hidden" }}>
+                        {dailySpend.map((day) => {
+                          const percent = (day.total / maxDailySpend) * 100;
+                          return (
+                            <div key={day.date.toISOString()} style={{
                               flex: 1,
                               display: "flex",
                               flexDirection: "column",
                               alignItems: "center",
-                              height: "100%",
-                              background: "transparent",
-                              border: "none",
-                              cursor: "pointer",
-                              outline: "none",
-                              padding: 0
-                            }}
-                          >
-                            <span style={{
-                              fontSize: "8px",
-                              color: isActive ? T.primary : T.dim,
-                              fontFamily: "'Inter', sans-serif",
-                              fontWeight: isActive ? 700 : 400,
-                              marginBottom: "4px",
-                              transition: "color 0.3s"
+                              minWidth: "12px",
+                              height: "100%"
                             }}>
-                              {fmt(month.total)}
-                            </span>
-                            <div style={{
-                              width: "100%",
-                              height: `${Math.max(percent, 10)}%`,
-                              background: isActive ? T.switchBg : `${T.primary}22`,
-                              border: `1px solid ${isActive ? T.primary : T.primary + "33"}`,
-                              borderRadius: "4px 4px 0 0",
-                              boxShadow: isActive ? `0 0 10px ${T.primary}55` : "none",
-                              transition: "all 0.3s"
-                            }} />
-                            <span style={{
-                              fontSize: "8px",
-                              color: isActive ? T.primary : T.dim,
-                              fontFamily: "'Inter', sans-serif",
-                              marginTop: "4px",
-                              fontWeight: isActive ? 700 : 400
-                            }}>
-                              {shortMonthFormatter.format(month.date).toUpperCase()}
-                            </span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                              <div
+                                title={`${dayFormatter.format(day.date)}: ${fmt(day.total)}`}
+                                style={{
+                                  width: "100%",
+                                  height: `${Math.max(percent, 6)}%`,
+                                  background: `linear-gradient(to top, ${T.secondary}77, ${T.primary})`,
+                                  boxShadow: `0 0 6px ${T.primary}55`,
+                                  borderRadius: "3px 3px 0 0",
+                                  transition: "height 0.4s ease, background 0.5s",
+                                  position: "relative"
+                                }}
+                              />
+                              <span style={{ fontSize: "8px", color: T.dim, fontFamily: "'Inter', sans-serif", marginTop: "4px" }}>
+                                {day.date.getDate()}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
 
-              </div>
+                  {/* Monthly Compare */}
+                  <div style={{
+                    background: T.panel,
+                    border: `1px solid ${T.primary}22`,
+                    borderRadius: "14px",
+                    padding: "16px",
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <MiniKatana color={`${T.primary}77`} size={28}/>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
+                          CHRONOLOGY OF STRIKES
+                        </span>
+                      </div>
+                      <span style={{ fontSize: "8px", color: T.muted, fontFamily: "'Inter', sans-serif" }}>
+                        MONTH COMPARISON
+                      </span>
+                    </div>
+
+                    {monthlySpend.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "20px", color: T.muted, fontSize: "11px", fontFamily: "'Inter', sans-serif" }}>
+                        NO HISTORY FOUND
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", alignItems: "flex-end", height: "90px", gap: "10px", padding: "10px 0 2px" }}>
+                        {monthlySpend.map((month) => {
+                          const isActive = month.key === activeMonth;
+                          const percent = (month.total / maxMonthlySpend) * 100;
+                          return (
+                            <button
+                              key={month.key}
+                              onClick={() => {
+                                setSelectedMonth(month.key);
+                                resetFilters();
+                              }}
+                              type="button"
+                              style={{
+                                flex: 1,
+                                display: "flex",
+                                flexDirection: "column",
+                                alignItems: "center",
+                                height: "100%",
+                                background: "transparent",
+                                border: "none",
+                                cursor: "pointer",
+                                outline: "none",
+                                padding: 0
+                              }}
+                            >
+                              <span style={{
+                                fontSize: "8px",
+                                color: isActive ? T.primary : T.dim,
+                                fontFamily: "'Inter', sans-serif",
+                                fontWeight: isActive ? 700 : 400,
+                                marginBottom: "4px",
+                                transition: "color 0.3s"
+                              }}>
+                                {fmt(month.total)}
+                              </span>
+                              <div style={{
+                                width: "100%",
+                                height: `${Math.max(percent, 10)}%`,
+                                background: isActive ? T.switchBg : `${T.primary}22`,
+                                border: `1px solid ${isActive ? T.primary : T.primary + "33"}`,
+                                borderRadius: "4px 4px 0 0",
+                                boxShadow: isActive ? `0 0 10px ${T.primary}55` : "none",
+                                transition: "all 0.3s"
+                              }} />
+                              <span style={{
+                                fontSize: "8px",
+                                color: isActive ? T.primary : T.dim,
+                                fontFamily: "'Inter', sans-serif",
+                                marginTop: "4px",
+                                fontWeight: isActive ? 700 : 400
+                              }}>
+                                {shortMonthFormatter.format(month.date).toUpperCase()}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                </div>
+              )}
 
               {/* ── TOOLS GRID ── */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "30px", animation: "slideIn .55s .35s ease both" }}>
+              {activeTab === "forge" && (
+                <div style={{ display: "flex", flexDirection: "column", gap: "14px", marginBottom: "30px", animation: "slideIn .55s .35s ease both" }}>
                 
                 {/* Monthly Budget Editor */}
                 <div style={{
@@ -2505,6 +2760,7 @@ export default function App() {
                 </div>
 
               </div>
+              )}
             </>
           )}
 
@@ -2534,6 +2790,77 @@ export default function App() {
               DEMON SLAYER CORPS · LEDGER SYSTEM
             </p>
           </div>
+
+          {/* Custom Toast Notifications */}
+          {toast.show && (
+            <div
+              className="toast-notification"
+              style={{
+                position: "fixed",
+                top: "24px",
+                left: "50%",
+                transform: "translateX(-50%)",
+                background: T.panel,
+                border: `1px solid ${toast.type === "success" ? T.accent || "#AAFF44" : toast.type === "warning" ? "#FFA040" : T.primary}aa`,
+                boxShadow: `0 8px 24px rgba(0, 0, 0, 0.4), 0 0 12px ${toast.type === "success" ? T.accent || "#AAFF44" : toast.type === "warning" ? "#FFA040" : T.primary}33`,
+                borderRadius: "12px",
+                padding: "12px 20px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                zIndex: 9999,
+                fontFamily: "'Inter', sans-serif",
+                fontSize: "12px",
+                color: "#fff"
+              }}
+            >
+              <span style={{ fontSize: "16px" }}>
+                {toast.type === "success" ? "⚔️" : toast.type === "warning" ? "⚠️" : "ℹ️"}
+              </span>
+              <span style={{ fontWeight: 500 }}>{toast.message}</span>
+            </div>
+          )}
+
+          {/* Full-screen Sword Clash Slash Animation overlay */}
+          {isSlashPlaying && (
+            <div
+              className={`slash-overlay slash-active-${slashTriggerTheme}`}
+              style={{
+                position: "fixed",
+                inset: 0,
+                zIndex: 9999,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                pointerEvents: "none",
+                overflow: "hidden"
+              }}
+            >
+              <div className="slash-line" style={{ left: "-20%" }} />
+            </div>
+          )}
+
+          {/* Glassmorphic Bottom Navigation Bar */}
+          <nav className="bottom-nav-bar">
+            {[
+              { id: "dashboard", label: "Dashboard", emoji: "🏠" },
+              { id: "forms", label: "Forms", emoji: "⚔️" },
+              { id: "analytics", label: "Training", emoji: "📊" },
+              { id: "forge", label: "Forge", emoji: "🔨" }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                type="button"
+                className={`nav-tab-btn ${activeTab === tab.id ? "nav-tab-btn-active" : ""}`}
+              >
+                <span style={{ fontSize: "20px" }}>{tab.emoji}</span>
+                <span style={{ fontSize: "9px", fontFamily: "'Inter', sans-serif", letterSpacing: "1px", fontWeight: activeTab === tab.id ? 700 : 500 }}>
+                  {tab.label}
+                </span>
+              </button>
+            ))}
+          </nav>
 
         </div>
 
