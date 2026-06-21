@@ -39,21 +39,39 @@ function parseDate(value) {
   if (!value) return null;
 
   const raw = String(value).trim();
-  const direct = new Date(raw);
 
+  // Try matching YYYY-MM-DD or YYYY/MM/DD
+  const ymdMatch = raw.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})$/);
+  if (ymdMatch) {
+    const [, year, month, day] = ymdMatch;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  // Try matching DD-MM-YYYY or DD/MM/YYYY
+  const dmyMatch = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dmyMatch) {
+    const [, day, month, year] = dmyMatch;
+    const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  // Try matching DD-MM-YY or DD/MM/YY (2-digit year)
+  const dmy2Match = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2})$/);
+  if (dmy2Match) {
+    const [, day, month, year] = dmy2Match;
+    const fullYear = `20${year}`;
+    const parsed = new Date(Number(fullYear), Number(month) - 1, Number(day));
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
+  // Fallback to standard Date parsing for text formats (e.g., "June 10")
+  const direct = new Date(raw);
   if (!Number.isNaN(direct.getTime())) {
     return direct;
   }
 
-  const match = raw.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
-
-  if (!match) return null;
-
-  const [, day, month, year] = match;
-  const fullYear = year.length === 2 ? `20${year}` : year;
-  const parsed = new Date(Number(fullYear), Number(month) - 1, Number(day));
-
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return null;
 }
 
 function getMonthKey(date) {

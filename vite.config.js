@@ -5,4 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   base: '/finance-dashboard/',
   plugins: [react()],
+  server: {
+    host: true
+  }
 })
