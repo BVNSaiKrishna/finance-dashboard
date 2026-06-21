@@ -889,7 +889,12 @@ export default function App() {
     }
 
     const parts = newExpenseDate.split("-");
-    const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+    const localDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    const formattedDate = new Intl.DateTimeFormat("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric"
+    }).format(localDate);
 
     const expenseText = newExpenseName.trim();
     const amountVal = Number(newExpenseAmount);
