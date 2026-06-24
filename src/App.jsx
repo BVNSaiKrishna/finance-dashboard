@@ -84,7 +84,7 @@ function getDayKey(date) {
   return `${date.getFullYear()}-${month}-${day}`;
 }
 
-function normalizeTransaction(tx, index) {
+function normalizeTransaction(tx) {
   const txKeys = Object.keys(tx || {});
   const findKey = (candidates) => {
     const found = txKeys.find((k) => candidates.includes(k.toLowerCase()));
@@ -136,15 +136,6 @@ function isCreditCardBill(tx) {
   );
 }
 
-function isPaidByCreditCard(tx) {
-  const payType = (tx.paymentType || "").toLowerCase().trim();
-  return (
-    payType.includes("credit card") ||
-    /\bcc\b/.test(payType) ||
-    payType === "card" ||
-    (payType.includes("card") && !payType.includes("debit"))
-  );
-}
 
 function sortByDateDesc(a, b) {
   return (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0);
@@ -836,8 +827,8 @@ export default function App() {
 
   const creditCardInsights = useMemo(() => {
     const cardData = {};
-    combinedTransactions.forEach((tx) => {
-      if (!isCreditCardBill(tx) || !tx.date) return;
+    monthlyCCBills.forEach((tx) => {
+      if (!tx.date) return;
       
       let cardName = tx.name.trim();
       // Clean up bill settlement names like "Amazon Icici Cc Bill" -> "Amazon Icici"
@@ -852,7 +843,8 @@ export default function App() {
       cardData[cardName].total += amount;
       cardData[cardName].count += 1;
     });
-  }, [combinedTransactions]);
+    return Object.values(cardData);
+  }, [monthlyCCBills]);
 
   const knownCreditCards = useMemo(() => {
     const cards = new Set();
@@ -2276,7 +2268,7 @@ export default function App() {
                       </div>
 
                       <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                        {monthlyCCBills.slice(0, 5).map((tx, idx) => {
+                        {monthlyCCBills.slice(0, 5).map((tx) => {
                           const cc = T.accent || "#AAFF44";
                           return (
                             <div key={tx.id} style={{
