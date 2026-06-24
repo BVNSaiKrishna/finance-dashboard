@@ -140,8 +140,9 @@ function isPaidByCreditCard(tx) {
   const payType = (tx.paymentType || "").toLowerCase().trim();
   return (
     payType.includes("credit card") ||
-    payType.includes("cc") ||
-    payType === "card"
+    /\bcc\b/.test(payType) ||
+    payType === "card" ||
+    (payType.includes("card") && !payType.includes("debit"))
   );
 }
 
@@ -836,8 +837,12 @@ export default function App() {
   const creditCardInsights = useMemo(() => {
     const cardData = {};
     combinedTransactions.forEach((tx) => {
-      if (!isPaidByCreditCard(tx) || isCreditCardBill(tx) || !tx.date) return;
-      const cardName = tx.paymentType.trim();
+      if (!isCreditCardBill(tx) || !tx.date) return;
+      
+      let cardName = tx.name.trim();
+      // Clean up bill settlement names like "Amazon Icici Cc Bill" -> "Amazon Icici"
+      cardName = cardName.replace(/(?:credit\s+card|cc)?\s*(?:bill|payment)$/gi, "").trim();
+
       const year = tx.date.getFullYear();
       const amount = tx.amount;
 
@@ -847,7 +852,30 @@ export default function App() {
       cardData[cardName].total += amount;
       cardData[cardName].count += 1;
     });
-    return Object.values(cardData).sort((a, b) => b.total - a.total);
+  }, [combinedTransactions]);
+
+  const knownCreditCards = useMemo(() => {
+    const cards = new Set();
+    combinedTransactions.forEach((tx) => {
+      if (isCreditCardBill(tx)) {
+        const rawName = tx.name.trim();
+        const cleanedName = rawName.replace(/(?:credit\s+card|cc)?\s*(?:bill|payment)$/gi, "").trim();
+        if (rawName) cards.add(rawName);
+        if (cleanedName) cards.add(cleanedName);
+      }
+    });
+    return [...cards].filter(name => {
+      const lower = name.toLowerCase();
+      return (
+        lower &&
+        lower !== "credit card bill" &&
+        lower !== "cc bill" &&
+        lower !== "credit card payment" &&
+        lower !== "cc payment" &&
+        lower !== "credit card" &&
+        lower !== "cc"
+      );
+    });
   }, [combinedTransactions]);
 
   const totalSpent = visibleTransactions.reduce((sum, tx) => sum + tx.amount, 0);
@@ -1028,6 +1056,16 @@ export default function App() {
     const expenseText = newExpenseName.trim();
     const amountVal = Number(newExpenseAmount);
 
+    const isCcName = (name) => {
+      const cleanInput = name.trim().toLowerCase();
+      return knownCreditCards.some(card => card.toLowerCase() === cleanInput);
+    };
+    const isSettlement = isCreditCardBill({ category: finalCategory, name: expenseText });
+    if (isCcName(expenseText) && !isSettlement) {
+      showToast(`'${expenseText}' is a known Credit Card. To log a CC bill settlement, please set Breathing Form to 'Credit Card Bill'.`, "warning");
+      return;
+    }
+
     const finalPaymentType = isCustomPaymentType ? customPaymentType.trim() : newExpensePaymentType;
     if (!finalPaymentType) {
       showToast("Please select or enter a payment type.", "warning");
@@ -1190,6 +1228,17 @@ export default function App() {
 
     if (!editName.trim() || !editAmount || !finalCategory || !finalPaymentType) {
       showToast("Please fill in all fields correctly.", "warning");
+      return;
+    }
+
+    const editNameText = editName.trim();
+    const isCcName = (name) => {
+      const cleanInput = name.trim().toLowerCase();
+      return knownCreditCards.some(card => card.toLowerCase() === cleanInput);
+    };
+    const isSettlement = isCreditCardBill({ category: finalCategory, name: editNameText });
+    if (isCcName(editNameText) && !isSettlement) {
+      showToast(`'${editNameText}' is a known Credit Card. To log a CC bill settlement, please set Breathing Form to 'Credit Card Bill'.`, "warning");
       return;
     }
 
@@ -3478,7 +3527,15 @@ export default function App() {
                             }}
                           >
                             <option value="UPI" style={{ background: T.raised }}>UPI (🏦)</option>
-                            <option value="Credit Card" style={{ background: T.raised }}>CREDIT CARD (💳)</option>
+                            {knownCreditCards
+                              .filter(card => card.toUpperCase() !== "CREDIT CARD")
+                              .map(card => (
+                                <option key={card} value={card.toUpperCase()} style={{ background: T.raised }}>
+                                  {card.toUpperCase()} (💳)
+                                </option>
+                              ))
+                            }
+                            <option value="Credit Card" style={{ background: T.raised }}>GENERIC CREDIT CARD (💳)</option>
                             <option value="Debit Card" style={{ background: T.raised }}>DEBIT CARD (📇)</option>
                             <option value="Cash" style={{ background: T.raised }}>CASH (💵)</option>
                             <option value="Net Banking" style={{ background: T.raised }}>NET BANKING (🌐)</option>
@@ -4171,7 +4228,15 @@ export default function App() {
                       }}
                     >
                       <option value="UPI" style={{ background: T.raised }}>UPI (🏦)</option>
-                      <option value="Credit Card" style={{ background: T.raised }}>CREDIT CARD (💳)</option>
+                      {knownCreditCards
+                        .filter(card => card.toUpperCase() !== "CREDIT CARD")
+                        .map(card => (
+                          <option key={card} value={card.toUpperCase()} style={{ background: T.raised }}>
+                            {card.toUpperCase()} (💳)
+                          </option>
+                        ))
+                      }
+                      <option value="Credit Card" style={{ background: T.raised }}>GENERIC CREDIT CARD (💳)</option>
                       <option value="Debit Card" style={{ background: T.raised }}>DEBIT CARD (📇)</option>
                       <option value="Cash" style={{ background: T.raised }}>CASH (💵)</option>
                       <option value="Net Banking" style={{ background: T.raised }}>NET BANKING (🌐)</option>
