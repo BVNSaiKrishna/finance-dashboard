@@ -98,19 +98,51 @@ function normalizeTransaction(tx, index) {
   const rawPaymentType = findKey(["paymenttype", "payment type", "payment_type", "payment", "mode", "method"]);
 
   const date = parseDate(rawDate);
+  const dateLabel = rawDate || "No date";
+  const name = rawExpense?.trim() || "Untitled expense";
+  const amount = parseAmount(rawAmount);
+  const category = rawCategory?.trim() || "Other";
+  const paymentType = rawPaymentType?.trim() || "NA";
+
+  const existingId = tx?.id || tx?.ID || tx?.Id;
+  const id = existingId || `${dateLabel}|${name.toLowerCase()}|${amount}|${category.toLowerCase()}|${paymentType.toLowerCase()}`;
 
   return {
-    id: `${rawDate ?? "unknown"}-${rawExpense ?? "expense"}-${rawAmount ?? index}-${index}`,
-    amount: parseAmount(rawAmount),
-    category: rawCategory?.trim() || "Other",
+    id,
+    amount,
+    category,
     date,
-    dateLabel: rawDate || "No date",
+    dateLabel,
     dayKey: date ? getDayKey(date) : "undated",
-    name: rawExpense?.trim() || "Untitled expense",
+    name,
     monthKey: date ? getMonthKey(date) : "undated",
-    paymentType: rawPaymentType?.trim() || "NA",
+    paymentType,
     raw: tx,
   };
+}
+
+function isCreditCardBill(tx) {
+  const category = (tx.category || "").toLowerCase().trim();
+  const name = (tx.name || "").toLowerCase().trim();
+  return (
+    category.includes("credit card bill") ||
+    category.includes("cc bill") ||
+    category.includes("credit card payment") ||
+    category.includes("cc payment") ||
+    name.includes("credit card bill") ||
+    name.includes("cc bill") ||
+    name.includes("credit card payment") ||
+    name.includes("cc payment")
+  );
+}
+
+function isPaidByCreditCard(tx) {
+  const payType = (tx.paymentType || "").toLowerCase().trim();
+  return (
+    payType.includes("credit card") ||
+    payType.includes("cc") ||
+    payType === "card"
+  );
 }
 
 function sortByDateDesc(a, b) {
@@ -544,6 +576,37 @@ export default function App() {
   const [customPaymentType, setCustomPaymentType] = useState("");
   const [switching, setSwitching] = useState(false);
 
+  // Edit & Delete Overrides States
+  const [deletedTxIds, setDeletedTxIds] = useState(() => {
+    try {
+      const stored = localStorage.getItem("finance-dashboard-deleted-txs");
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [editedTxs, setEditedTxs] = useState(() => {
+    try {
+      const stored = localStorage.getItem("finance-dashboard-edited-txs");
+      return stored ? JSON.parse(stored) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // Edit Modal form states
+  const [editingTx, setEditingTx] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editCategory, setEditCategory] = useState("");
+  const [editDate, setEditDate] = useState("");
+  const [editPaymentType, setEditPaymentType] = useState("");
+  const [isEditCustomCategory, setIsEditCustomCategory] = useState(false);
+  const [editCustomCategory, setEditCustomCategory] = useState("");
+  const [isEditCustomPayment, setIsEditCustomPayment] = useState(false);
+  const [editCustomPayment, setEditCustomPayment] = useState("");
+
   // New Premium App States
   const [activeTab, setActiveTab] = useState("dashboard"); // dashboard, forms, analytics, forge
   const [isSlashPlaying, setIsSlashPlaying] = useState(false);
@@ -583,6 +646,14 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem(LOCAL_TX_STORAGE_KEY, JSON.stringify(localTransactions));
   }, [localTransactions]);
+
+  useEffect(() => {
+    localStorage.setItem("finance-dashboard-deleted-txs", JSON.stringify(deletedTxIds));
+  }, [deletedTxIds]);
+
+  useEffect(() => {
+    localStorage.setItem("finance-dashboard-edited-txs", JSON.stringify(editedTxs));
+  }, [editedTxs]);
 
   useEffect(() => {
     let isMounted = true;
@@ -632,8 +703,22 @@ export default function App() {
     const normalizedLocal = localTransactions.map((tx, index) =>
       normalizeTransaction(tx, `local-${index}`)
     );
-    return [...transactions, ...normalizedLocal].sort(sortByDateDesc);
-  }, [transactions, localTransactions]);
+    return [...transactions, ...normalizedLocal]
+      .filter((tx) => !deletedTxIds.includes(tx.id))
+      .map((tx) => {
+        if (editedTxs[tx.id]) {
+          const override = editedTxs[tx.id];
+          return {
+            ...tx,
+            ...override,
+            id: tx.id,
+            raw: tx.raw
+          };
+        }
+        return tx;
+      })
+      .sort(sortByDateDesc);
+  }, [transactions, localTransactions, deletedTxIds, editedTxs]);
 
   const monthOptions = useMemo(() => {
     const options = new Map();
@@ -655,14 +740,27 @@ export default function App() {
     return combinedTransactions.filter((tx) => tx.monthKey === activeMonth);
   }, [activeMonth, combinedTransactions]);
 
-  const categoryOptions = useMemo(() => {
-    return [...new Set(monthlyTransactions.map((tx) => tx.category))].sort();
+  const { monthlyExpenses, monthlyCCBills } = useMemo(() => {
+    const expenses = [];
+    const bills = [];
+    monthlyTransactions.forEach((tx) => {
+      if (isCreditCardBill(tx)) {
+        bills.push(tx);
+      } else {
+        expenses.push(tx);
+      }
+    });
+    return { monthlyExpenses: expenses, monthlyCCBills: bills };
   }, [monthlyTransactions]);
+
+  const categoryOptions = useMemo(() => {
+    return [...new Set(monthlyExpenses.map((tx) => tx.category))].sort();
+  }, [monthlyExpenses]);
 
   const visibleTransactions = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
 
-    return monthlyTransactions.filter((tx) => {
+    return monthlyExpenses.filter((tx) => {
       const matchesCategory =
         selectedCategory === "all" || tx.category === selectedCategory;
       const matchesQuery =
@@ -671,7 +769,21 @@ export default function App() {
 
       return matchesCategory && matchesQuery;
     });
-  }, [monthlyTransactions, query, selectedCategory]);
+  }, [monthlyExpenses, query, selectedCategory]);
+
+  const visibleCCBills = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    return monthlyCCBills.filter((tx) => {
+      const matchesCategory =
+        selectedCategory === "all" || tx.category === selectedCategory;
+      const matchesQuery =
+        !normalizedQuery ||
+        `${tx.name} ${tx.category} ${tx.dateLabel} ${tx.paymentType || "NA"}`.toLowerCase().includes(normalizedQuery);
+
+      return matchesCategory && matchesQuery;
+    });
+  }, [monthlyCCBills, query, selectedCategory]);
 
   const groupedCategories = useMemo(() => {
     const grouped = visibleTransactions.reduce((acc, tx) => {
@@ -694,7 +806,7 @@ export default function App() {
   }, [visibleTransactions]);
 
   const dailySpend = useMemo(() => {
-    const grouped = monthlyTransactions.reduce((acc, tx) => {
+    const grouped = monthlyExpenses.reduce((acc, tx) => {
       if (!tx.date) return acc;
       acc[tx.dayKey] ??= { date: tx.date, total: 0 };
       acc[tx.dayKey].total += tx.amount;
@@ -702,11 +814,11 @@ export default function App() {
     }, {});
 
     return Object.values(grouped).sort((a, b) => a.date - b.date);
-  }, [monthlyTransactions]);
+  }, [monthlyExpenses]);
 
   const monthlySpend = useMemo(() => {
     const grouped = combinedTransactions.reduce((acc, tx) => {
-      if (!tx.date) return acc;
+      if (!tx.date || isCreditCardBill(tx)) return acc;
       acc[tx.monthKey] ??= {
         date: new Date(tx.date.getFullYear(), tx.date.getMonth(), 1),
         key: tx.monthKey,
@@ -721,8 +833,25 @@ export default function App() {
     return Object.values(grouped).sort((a, b) => a.date - b.date);
   }, [combinedTransactions]);
 
+  const creditCardInsights = useMemo(() => {
+    const cardData = {};
+    combinedTransactions.forEach((tx) => {
+      if (!isPaidByCreditCard(tx) || isCreditCardBill(tx) || !tx.date) return;
+      const cardName = tx.paymentType.trim();
+      const year = tx.date.getFullYear();
+      const amount = tx.amount;
+
+      cardData[cardName] ??= { name: cardName, yearlySpend: {}, total: 0, count: 0 };
+      cardData[cardName].yearlySpend[year] ??= 0;
+      cardData[cardName].yearlySpend[year] += amount;
+      cardData[cardName].total += amount;
+      cardData[cardName].count += 1;
+    });
+    return Object.values(cardData).sort((a, b) => b.total - a.total);
+  }, [combinedTransactions]);
+
   const totalSpent = visibleTransactions.reduce((sum, tx) => sum + tx.amount, 0);
-  const monthlyTotal = monthlyTransactions.reduce((sum, tx) => sum + tx.amount, 0);
+  const monthlyTotal = monthlyExpenses.reduce((sum, tx) => sum + tx.amount, 0);
   const highestDay = dailySpend.reduce(
     (best, day) => (day.total > best.total ? day : best),
     { total: 0, date: null },
@@ -993,11 +1122,12 @@ export default function App() {
 
   const exportToCSV = () => {
     const headers = ["Date", "Expense", "Amount", "Category", "PaymentType"];
-    const rows = visibleTransactions.map((tx) => [
-      tx.dateLabel,
-      `"${tx.name.replace(/"/g, '""')}"`,
+    const allVisible = [...visibleTransactions, ...visibleCCBills].sort(sortByDateDesc);
+    const rows = allVisible.map((tx) => [
+      `"${(tx.dateLabel || "").replace(/"/g, '""')}"`,
+      `"${(tx.name || "").replace(/"/g, '""')}"`,
       tx.amount,
-      `"${tx.category.replace(/"/g, '""')}"`,
+      `"${(tx.category || "").replace(/"/g, '""')}"`,
       `"${(tx.paymentType || "NA").replace(/"/g, '""')}"`,
     ]);
     const csvContent =
@@ -1010,6 +1140,194 @@ export default function App() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleEditClick = (tx) => {
+    setEditingTx(tx);
+    setEditName(tx.name);
+    setEditAmount(String(tx.amount));
+    
+    // check if standard category
+    const isCustom = !categoryOptions.includes(tx.category);
+    setIsEditCustomCategory(isCustom);
+    if (isCustom) {
+      setEditCustomCategory(tx.category);
+      setEditCategory("__custom__");
+    } else {
+      setEditCategory(tx.category);
+      setEditCustomCategory("");
+    }
+    
+    // check if standard payment type
+    const standardPayments = ["UPI", "Credit Card", "Debit Card", "Cash", "Net Banking", "NA"];
+    const isCustomPay = !standardPayments.includes(tx.paymentType);
+    setIsEditCustomPayment(isCustomPay);
+    if (isCustomPay) {
+      setEditCustomPayment(tx.paymentType);
+      setEditPaymentType("__custom__");
+    } else {
+      setEditPaymentType(tx.paymentType);
+      setEditCustomPayment("");
+    }
+    
+    // parse date to YYYY-MM-DD
+    if (tx.date) {
+      const y = tx.date.getFullYear();
+      const m = String(tx.date.getMonth() + 1).padStart(2, "0");
+      const d = String(tx.date.getDate()).padStart(2, "0");
+      setEditDate(`${y}-${m}-${d}`);
+    } else {
+      setEditDate(new Date().toISOString().split("T")[0]);
+    }
+  };
+
+  const handleSaveEdit = async (e) => {
+    e.preventDefault();
+    if (!editingTx) return;
+
+    const finalCategory = isEditCustomCategory ? editCustomCategory.trim() : editCategory;
+    const finalPaymentType = isEditCustomPayment ? editCustomPayment.trim() : editPaymentType;
+
+    if (!editName.trim() || !editAmount || !finalCategory || !finalPaymentType) {
+      showToast("Please fill in all fields correctly.", "warning");
+      return;
+    }
+
+    const parts = editDate.split("-");
+    const localDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    const formattedDate = new Intl.DateTimeFormat("en-US", {
+      month: "long",
+      day: "numeric",
+      year: "numeric"
+    }).format(localDate);
+
+    const updatedLocalFields = {
+      Expense: editName.trim(),
+      Amount: editAmount,
+      Category: finalCategory,
+      Date: formattedDate,
+      PaymentType: finalPaymentType
+    };
+
+    if (editingTx.id.startsWith("local-")) {
+      // Local transaction
+      setLocalTransactions((prev) =>
+        prev.map((item) =>
+          item.id === editingTx.id ? { ...item, ...updatedLocalFields } : item
+        )
+      );
+      showToast("Strike updated locally!", "success");
+      setEditingTx(null);
+    } else {
+      // Sheet transaction
+      const updatedTx = {
+        name: editName.trim(),
+        amount: Number(editAmount),
+        category: finalCategory,
+        dateLabel: formattedDate,
+        date: localDate,
+        paymentType: finalPaymentType
+      };
+
+      setEditedTxs((prev) => ({
+        ...prev,
+        [editingTx.id]: updatedTx
+      }));
+
+      setEditingTx(null);
+
+      if (isCustomActive && customAppsScriptUrl.trim()) {
+        try {
+          setIsSubmittingExpense(true);
+          const response = await fetch(customAppsScriptUrl.trim(), {
+            method: "POST",
+            mode: "cors",
+            headers: {
+              "Content-Type": "text/plain"
+            },
+            body: JSON.stringify({
+              action: "edit",
+              original: {
+                date: editingTx.dateLabel,
+                expense: editingTx.name,
+                amount: editingTx.amount,
+                category: editingTx.category,
+                paymentType: editingTx.paymentType
+              },
+              updated: {
+                date: formattedDate,
+                expense: editName.trim(),
+                amount: Number(editAmount),
+                category: finalCategory,
+                paymentType: finalPaymentType
+              }
+            })
+          });
+
+          if (response.ok) {
+            showToast("Strike updated in Google Sheet!", "success");
+            triggerRefetch();
+          } else {
+            throw new Error("Edit sync failed");
+          }
+        } catch (err) {
+          console.error("Edit sync error:", err);
+          showToast("Updated locally. Sheet sync failed.", "warning");
+        } finally {
+          setIsSubmittingExpense(false);
+        }
+      } else {
+        showToast("Strike updated locally!", "success");
+      }
+    }
+  };
+
+  const handleDeleteClick = async (tx) => {
+    const confirmMessage = `Are you sure you want to delete the strike: "${tx.name}"?`;
+    if (!window.confirm(confirmMessage)) return;
+
+    if (tx.id.startsWith("local-")) {
+      setLocalTransactions((prev) => prev.filter((item) => item.id !== tx.id));
+      showToast("Strike deleted locally!", "success");
+    } else {
+      // Sheet transaction
+      setDeletedTxIds((prev) => [...prev, tx.id]);
+
+      if (isCustomActive && customAppsScriptUrl.trim()) {
+        try {
+          setIsSubmittingExpense(true);
+          const response = await fetch(customAppsScriptUrl.trim(), {
+            method: "POST",
+            mode: "cors",
+            headers: {
+              "Content-Type": "text/plain"
+            },
+            body: JSON.stringify({
+              action: "delete",
+              date: tx.dateLabel,
+              expense: tx.name,
+              amount: tx.amount,
+              category: tx.category,
+              paymentType: tx.paymentType
+            })
+          });
+
+          if (response.ok) {
+            showToast("Strike deleted from Google Sheet!", "success");
+            triggerRefetch();
+          } else {
+            throw new Error("Apps Script delete failed");
+          }
+        } catch (err) {
+          console.error("Sync delete failed:", err);
+          showToast("Deleted locally. Sheet sync failed.", "warning");
+        } finally {
+          setIsSubmittingExpense(false);
+        }
+      } else {
+        showToast("Strike deleted locally!", "success");
+      }
+    }
   };
 
   const handleSwitch = (id) => {
@@ -1774,78 +2092,212 @@ export default function App() {
 
               {/* ── RECENT STRIKES LOG ── */}
               {activeTab === "dashboard" && (
-                <div style={{
-                  background: T.panel,
-                  border: `1px solid ${T.primary}22`,
-                  borderRadius: "14px",
-                  padding: "16px",
-                  marginBottom: "20px",
-                  animation: "slideIn 0.55s 0.18s ease both"
-                }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                      <MiniKatana color={`${T.primary}77`} size={28}/>
-                      <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
-                        RECENT STRIKES
-                      </span>
+                <>
+                  <div style={{
+                    background: T.panel,
+                    border: `1px solid ${T.primary}22`,
+                    borderRadius: "14px",
+                    padding: "16px",
+                    marginBottom: "20px",
+                    animation: "slideIn 0.55s 0.18s ease both"
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <MiniKatana color={`${T.primary}77`} size={28}/>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
+                          RECENT STRIKES
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => setActiveTab("forms")}
+                        type="button"
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          color: T.primary,
+                          fontSize: "9px",
+                          fontWeight: 700,
+                          cursor: "pointer",
+                          fontFamily: "'Inter', sans-serif",
+                          letterSpacing: "1.5px"
+                        }}
+                      >
+                        VIEW ALL ⚔️
+                      </button>
                     </div>
-                    <button
-                      onClick={() => setActiveTab("forms")}
-                      type="button"
-                      style={{
-                        background: "transparent",
-                        border: "none",
-                        color: T.primary,
-                        fontSize: "9px",
-                        fontWeight: 700,
-                        cursor: "pointer",
-                        fontFamily: "'Inter', sans-serif",
-                        letterSpacing: "1.5px"
-                      }}
-                    >
-                      VIEW ALL ⚔️
-                    </button>
-                  </div>
 
-                  {combinedTransactions.length === 0 ? (
-                    <div style={{ textAlign: "center", padding: "16px", color: T.muted, fontSize: "11px", fontFamily: "'Inter', sans-serif" }}>
-                      NO STRIKES LOGGED YET
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
-                      {combinedTransactions.slice(0, 5).map((tx, idx) => {
-                        const catDetails = getCategoryDetails(tx.category, idx);
-                        const cc = T.catColors[idx % T.catColors.length];
-                        return (
-                          <div key={tx.id} style={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                            background: T.raised,
-                            border: `1px solid ${T.border}`,
-                            borderRadius: "10px",
-                            padding: "10px 12px"
-                          }}>
-                            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-                              <span style={{ fontSize: "16px" }}>{catDetails.emoji}</span>
-                              <div>
-                                <div style={{ fontSize: "12px", fontWeight: 600, color: "#d0cce8", fontFamily: "'Inter', sans-serif" }}>
-                                  {tx.name}
+                    {monthlyExpenses.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "16px", color: T.muted, fontSize: "11px", fontFamily: "'Inter', sans-serif" }}>
+                        NO STRIKES LOGGED YET
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        {monthlyExpenses.slice(0, 5).map((tx, idx) => {
+                          const catDetails = getCategoryDetails(tx.category, idx);
+                          const cc = T.catColors[idx % T.catColors.length];
+                          return (
+                            <div key={tx.id} style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              background: T.raised,
+                              border: `1px solid ${T.border}`,
+                              borderRadius: "10px",
+                              padding: "10px 12px"
+                            }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                <span style={{ fontSize: "16px" }}>{catDetails.emoji}</span>
+                                <div>
+                                  <div style={{ fontSize: "12px", fontWeight: 600, color: "#d0cce8", fontFamily: "'Inter', sans-serif" }}>
+                                    {tx.name}
+                                  </div>
+                                  <div style={{ fontSize: "9px", color: T.muted, fontFamily: "'Inter', sans-serif", marginTop: "1px" }}>
+                                    {tx.dateLabel} • {tx.paymentType || "NA"} • <span style={{ color: cc }}>{tx.category}</span>
+                                  </div>
                                 </div>
-                                <div style={{ fontSize: "9px", color: T.muted, fontFamily: "'Inter', sans-serif", marginTop: "1px" }}>
-                                  {tx.dateLabel} • {tx.paymentType || "NA"} • <span style={{ color: cc }}>{tx.category}</span>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                <span style={{ fontSize: "13px", fontWeight: 700, color: cc, fontFamily: "'Inter', sans-serif" }}>
+                                  {fmt(tx.amount)}
+                                </span>
+                                <div style={{ display: "flex", gap: "4px" }}>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleEditClick(tx); }}
+                                    style={{
+                                      background: "transparent",
+                                      border: "none",
+                                      cursor: "pointer",
+                                      fontSize: "12px",
+                                      padding: "2px",
+                                      opacity: 0.6,
+                                      transition: "opacity 0.2s"
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                                    onMouseLeave={(e) => e.currentTarget.style.opacity = 0.6}
+                                    title="Edit Strike"
+                                  >
+                                    ✏️
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteClick(tx); }}
+                                    style={{
+                                      background: "transparent",
+                                      border: "none",
+                                      cursor: "pointer",
+                                      fontSize: "12px",
+                                      padding: "2px",
+                                      opacity: 0.6,
+                                      transition: "opacity 0.2s"
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                                    onMouseLeave={(e) => e.currentTarget.style.opacity = 0.6}
+                                    title="Delete Strike"
+                                  >
+                                    🗑️
+                                  </button>
                                 </div>
                               </div>
                             </div>
-                            <span style={{ fontSize: "13px", fontWeight: 700, color: cc, fontFamily: "'Inter', sans-serif" }}>
-                              {fmt(tx.amount)}
-                            </span>
-                          </div>
-                        );
-                      })}
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── BILL SETTLEMENTS ── */}
+                  {monthlyCCBills.length > 0 && (
+                    <div style={{
+                      background: T.panel,
+                      border: `1px solid ${T.accent || "#AAFF44"}22`,
+                      borderRadius: "14px",
+                      padding: "16px",
+                      marginBottom: "20px",
+                      animation: "slideIn 0.55s 0.22s ease both"
+                    }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                          <MiniKatana color={`${T.accent || "#AAFF44"}77`} size={28}/>
+                          <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", letterSpacing: "2px", color: `${T.accent || "#AAFF44"}77` }}>
+                            BILL SETTLEMENTS · 結算
+                          </span>
+                        </div>
+                        <span style={{ fontSize: "9px", color: T.accent || "#AAFF44", fontFamily: "'Inter', sans-serif", fontWeight: 700 }}>
+                          CC PAYMENTS
+                        </span>
+                      </div>
+
+                      <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+                        {monthlyCCBills.slice(0, 5).map((tx, idx) => {
+                          const cc = T.accent || "#AAFF44";
+                          return (
+                            <div key={tx.id} style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                              background: T.raised,
+                              border: `1px solid ${T.border}`,
+                              borderRadius: "10px",
+                              padding: "10px 12px"
+                            }}>
+                              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                <span style={{ fontSize: "16px" }}>💳</span>
+                                <div>
+                                  <div style={{ fontSize: "12px", fontWeight: 600, color: "#d0cce8", fontFamily: "'Inter', sans-serif" }}>
+                                    {tx.name}
+                                  </div>
+                                  <div style={{ fontSize: "9px", color: T.muted, fontFamily: "'Inter', sans-serif", marginTop: "1px" }}>
+                                    {tx.dateLabel} • {tx.paymentType || "NA"} • <span style={{ color: cc }}>{tx.category}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                <span style={{ fontSize: "13px", fontWeight: 700, color: cc, fontFamily: "'Inter', sans-serif" }}>
+                                  {fmt(tx.amount)}
+                                </span>
+                                <div style={{ display: "flex", gap: "4px" }}>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleEditClick(tx); }}
+                                    style={{
+                                      background: "transparent",
+                                      border: "none",
+                                      cursor: "pointer",
+                                      fontSize: "12px",
+                                      padding: "2px",
+                                      opacity: 0.6,
+                                      transition: "opacity 0.2s"
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                                    onMouseLeave={(e) => e.currentTarget.style.opacity = 0.6}
+                                    title="Edit Settlement"
+                                  >
+                                    ✏️
+                                  </button>
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteClick(tx); }}
+                                    style={{
+                                      background: "transparent",
+                                      border: "none",
+                                      cursor: "pointer",
+                                      fontSize: "12px",
+                                      padding: "2px",
+                                      opacity: 0.6,
+                                      transition: "opacity 0.2s"
+                                    }}
+                                    onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                                    onMouseLeave={(e) => e.currentTarget.style.opacity = 0.6}
+                                    title="Delete Settlement"
+                                  >
+                                    🗑️
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
-                </div>
+                </>
               )}
 
               {/* ── FILTERS PANEL ── */}
@@ -2289,12 +2741,50 @@ export default function App() {
                                         </div>
                                       </div>
                                     </div>
-                                    <span style={{ fontSize:"13px", fontWeight:600,
-                                      fontFamily:"'Inter', sans-serif",
-                                      color:cc, textShadow:`0 0 10px ${cc}55`,
-                                      transition:"color .5s" }}>
-                                      {fmt(tx.amount)}
-                                    </span>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                      <span style={{ fontSize:"13px", fontWeight:600,
+                                        fontFamily:"'Inter', sans-serif",
+                                        color:cc, textShadow:`0 0 10px ${cc}55`,
+                                        transition:"color .5s" }}>
+                                        {fmt(tx.amount)}
+                                      </span>
+                                      <div style={{ display: "flex", gap: "4px" }}>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleEditClick(tx); }}
+                                          style={{
+                                            background: "transparent",
+                                            border: "none",
+                                            cursor: "pointer",
+                                            fontSize: "12px",
+                                            padding: "2px",
+                                            opacity: 0.6,
+                                            transition: "opacity 0.2s"
+                                          }}
+                                          onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                                          onMouseLeave={(e) => e.currentTarget.style.opacity = 0.6}
+                                          title="Edit Strike"
+                                        >
+                                          ✏️
+                                        </button>
+                                        <button
+                                          onClick={(e) => { e.stopPropagation(); handleDeleteClick(tx); }}
+                                          style={{
+                                            background: "transparent",
+                                            border: "none",
+                                            cursor: "pointer",
+                                            fontSize: "12px",
+                                            padding: "2px",
+                                            opacity: 0.6,
+                                            transition: "opacity 0.2s"
+                                          }}
+                                          onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                                          onMouseLeave={(e) => e.currentTarget.style.opacity = 0.6}
+                                          title="Delete Strike"
+                                        >
+                                          🗑️
+                                        </button>
+                                      </div>
+                                    </div>
                                   </div>
                                 ))}
                               </div>
@@ -2303,6 +2793,189 @@ export default function App() {
                         </div>
                       );
                     })}
+
+                    {/* ── CREDIT CARD BILLS COLLAPSIBLE CARD ── */}
+                    {visibleCCBills.length > 0 && (
+                      (() => {
+                        const isOpen = !!expanded["cc_bills"];
+                        const cc = T.accent || "#AAFF44";
+                        const totalCC = visibleCCBills.reduce((sum, tx) => sum + tx.amount, 0);
+                        return (
+                          <div className="ds-card"
+                            onClick={() => toggle("cc_bills")}
+                            style={{
+                              position:"relative",
+                              background: isOpen ? T.raised : T.panel,
+                              border:`1px solid ${isOpen ? cc+"55" : T.border}`,
+                              borderRadius:"14px", overflow:"hidden",
+                              cursor:"pointer",
+                              transition:"border-color .25s, background .25s",
+                              animation:`slideIn .5s 0.6s ease both`,
+                              marginTop: "10px"
+                            }}>
+
+                            {/* Haori stripe top */}
+                            <div style={{ position:"absolute", top:0, left:0, right:0, height:"3px",
+                              background:`repeating-linear-gradient(${T.haoriAngle},${cc} 0,${cc} 10px,transparent 10px,transparent 20px)`,
+                              opacity: isOpen ? 0.8 : 0.3, transition:"opacity .25s, background .5s" }}/>
+
+                            {/* Left strip */}
+                            <div style={{ position:"absolute", left:0, top:"14%", bottom:"14%",
+                              width:"3px", borderRadius:"0 3px 3px 0",
+                              background:cc,
+                              boxShadow:`0 0 10px ${cc}99, 0 0 22px ${cc}44`,
+                              transition:"background .5s, box-shadow .5s" }}/>
+
+                            <div style={{ padding:"14px 14px 14px 18px" }}>
+                              <div style={{ display:"flex", justifyContent:"space-between",
+                                alignItems: isOpen ? "flex-start" : "center", marginBottom: isOpen ? "10px" : "0" }}>
+                                <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+                                  <div style={{ width:"42px", height:"42px",
+                                    background:T.raised, borderRadius:"10px",
+                                    display:"flex", alignItems:"center", justifyContent:"center",
+                                    fontSize:"19px", flexShrink:0,
+                                    border:`1px solid ${cc}44`,
+                                    boxShadow:`0 0 14px ${cc}30`,
+                                    position:"relative", overflow:"hidden",
+                                    transition:"background .5s, border-color .5s" }}>
+                                    <div style={{ position:"absolute", bottom:0, left:0, right:0, height:"5px",
+                                      background:`repeating-linear-gradient(${T.haoriAngle},${cc}55 0,${cc}55 4px,transparent 4px,transparent 8px)` }}/>
+                                    💳
+                                  </div>
+                                  <div>
+                                    <div style={{ display:"flex", alignItems:"center", gap:"6px", marginBottom:"2px" }}>
+                                      <span style={{ fontSize:"14px", fontWeight:700, color:"#d0cce8",
+                                        fontFamily:"'Plus Jakarta Sans', sans-serif", letterSpacing:"0.5px" }}>
+                                        Credit Card Bill Settlements
+                                      </span>
+                                      <span style={{ fontFamily:"'Noto Serif JP',serif",
+                                        fontSize:"10px", color:cc+"88",
+                                        padding:"1px 5px",
+                                        border:`1px solid ${cc}30`,
+                                        borderRadius:"4px",
+                                        background:`${cc}0c`,
+                                        transition:"color .5s, border-color .5s" }}>
+                                        結算
+                                      </span>
+                                    </div>
+                                    <div style={{ display:"flex", alignItems:"center", gap:"5px" }}>
+                                      <MiniKatana color={cc+"77"} size={28}/>
+                                      <span style={{ fontSize:"10px",
+                                        fontFamily:"'Inter', sans-serif",
+                                        color:cc+"77", letterSpacing:"0.4px",
+                                        transition:"color .5s" }}>
+                                        {visibleCCBills.length} settlements
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+                                  <span style={{ fontSize:"16px", fontWeight:700,
+                                    fontFamily:"'Inter', sans-serif",
+                                    color:cc, textShadow:`0 0 14px ${cc}aa`,
+                                    transition:"color .5s, text-shadow .5s" }}>
+                                    {fmt(totalCC)}
+                                  </span>
+                                  <div style={{ width:"24px", height:"24px",
+                                    border:`1px solid ${cc}44`, borderRadius:"6px",
+                                    background:`${cc}0c`,
+                                    display:"flex", alignItems:"center", justifyContent:"center",
+                                    transition:"transform .25s, border-color .5s",
+                                    transform: isOpen ? "rotate(180deg)" : "rotate(0deg)" }}>
+                                    <span style={{ color:cc, fontSize:"13px", lineHeight:1,
+                                      transition:"color .5s" }}>▾</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              {isOpen && (
+                                <div style={{ marginTop:"14px" }}>
+                                  <div style={{ display:"flex", alignItems:"center", gap:"8px",
+                                    borderTop:`1px solid ${cc}22`,
+                                    paddingTop:"10px", marginBottom:"10px" }}>
+                                    {theme==="zenitsu"
+                                      ? <Bolt size={10} color={cc+"88"}/>
+                                      : <Droplet size={9} color={cc} opacity={0.7}/>}
+                                    <span style={{ fontFamily:"'Inter', sans-serif",
+                                      fontSize:"8px", letterSpacing:"2px",
+                                      color:cc+"77", textTransform:"uppercase",
+                                      transition:"color .5s" }}>
+                                      SETTLEMENT LOG
+                                    </span>
+                                    <div style={{ flex:1, height:"1px",
+                                      background:`linear-gradient(90deg,${cc}22,transparent)` }}/>
+                                  </div>
+                                  {visibleCCBills.map((tx,i)=>(
+                                    <div key={tx.id} style={{ display:"flex", justifyContent:"space-between",
+                                      alignItems:"center",
+                                      paddingBottom:"8px", marginBottom:"4px",
+                                      borderBottom: i<visibleCCBills.length-1 ? `1px solid ${cc}12` : "none" }}>
+                                      <div style={{ display:"flex", alignItems:"center", gap:"10px" }}>
+                                        <div style={{ width:"5px", height:"5px", borderRadius:"50%",
+                                          background:cc, boxShadow:`0 0 5px ${cc}99`, flexShrink:0 }}/>
+                                        <div>
+                                          <div style={{ fontSize:"12px", color:"#6a6a9a",
+                                            fontFamily:"'Inter', sans-serif" }}>{tx.name}</div>
+                                          <div style={{ fontSize:"10px", color:T.muted,
+                                            fontFamily:"'Inter', sans-serif", marginTop:"1px",
+                                            transition:"color .5s" }}>
+                                            {tx.dateLabel} <span style={{ color: `${cc}55` }}>•</span> {tx.paymentType || "NA"}
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                                        <span style={{ fontSize:"13px", fontWeight:600,
+                                          fontFamily:"'Inter', sans-serif",
+                                          color:cc, textShadow:`0 0 10px ${cc}55`,
+                                          transition:"color .5s" }}>
+                                          {fmt(tx.amount)}
+                                        </span>
+                                        <div style={{ display: "flex", gap: "4px" }}>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); handleEditClick(tx); }}
+                                            style={{
+                                              background: "transparent",
+                                              border: "none",
+                                              cursor: "pointer",
+                                              fontSize: "12px",
+                                              padding: "2px",
+                                              opacity: 0.6,
+                                              transition: "opacity 0.2s"
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                                            onMouseLeave={(e) => e.currentTarget.style.opacity = 0.6}
+                                            title="Edit Settlement"
+                                          >
+                                            ✏️
+                                          </button>
+                                          <button
+                                            onClick={(e) => { e.stopPropagation(); handleDeleteClick(tx); }}
+                                            style={{
+                                              background: "transparent",
+                                              border: "none",
+                                              cursor: "pointer",
+                                              fontSize: "12px",
+                                              padding: "2px",
+                                              opacity: 0.6,
+                                              transition: "opacity 0.2s"
+                                            }}
+                                            onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
+                                            onMouseLeave={(e) => e.currentTarget.style.opacity = 0.6}
+                                            title="Delete Settlement"
+                                          >
+                                            🗑️
+                                          </button>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })()
+                    )}
                   </div>
                 </>
               )}
@@ -2447,6 +3120,92 @@ export default function App() {
                                 {shortMonthFormatter.format(month.date).toUpperCase()}
                               </span>
                             </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* ── CREDIT CARD ANALYTICS ── */}
+                  <div style={{
+                    background: T.panel,
+                    border: `1px solid ${T.primary}22`,
+                    borderRadius: "14px",
+                    padding: "16px",
+                  }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                        <MiniKatana color={`${T.primary}77`} size={28}/>
+                        <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", letterSpacing: "2px", color: `${T.primary}77` }}>
+                          CREDIT CARD INSIGHTS
+                        </span>
+                      </div>
+                      <span style={{ fontSize: "8px", color: T.muted, fontFamily: "'Inter', sans-serif" }}>
+                        CARD ANALYTICS · 信用卡
+                      </span>
+                    </div>
+
+                    {creditCardInsights.length === 0 ? (
+                      <div style={{ textAlign: "center", padding: "20px", color: T.muted, fontSize: "11px", fontFamily: "'Inter', sans-serif" }}>
+                        NO CREDIT CARD SPENDING DETECTED YET
+                      </div>
+                    ) : (
+                      <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                        {creditCardInsights.map((card, idx) => {
+                          const totalCCSpend = creditCardInsights.reduce((sum, c) => sum + c.total, 0);
+                          const cardShare = totalCCSpend > 0 ? (card.total / totalCCSpend) * 100 : 0;
+                          const cc = T.catColors[idx % T.catColors.length];
+                          
+                          return (
+                            <div key={card.name} style={{
+                              background: T.raised,
+                              border: `1px solid ${T.border}`,
+                              borderRadius: "12px",
+                              padding: "12px"
+                            }}>
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
+                                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                                  <span style={{ fontSize: "14px" }}>💳</span>
+                                  <span style={{ fontSize: "12px", fontWeight: 700, color: "#d0cce8", fontFamily: "'Inter', sans-serif" }}>
+                                    {card.name.toUpperCase()}
+                                  </span>
+                                </div>
+                                <span style={{ fontSize: "13px", fontWeight: 700, color: cc, fontFamily: "'Inter', sans-serif" }}>
+                                  {fmt(card.total)}
+                                </span>
+                              </div>
+
+                              {/* Relative Share Bar */}
+                              <div style={{ height: "4px", background: T.border, borderRadius: "2px", overflow: "hidden", marginBottom: "8px" }}>
+                                <div style={{
+                                  height: "100%",
+                                  width: `${cardShare}%`,
+                                  background: cc,
+                                  boxShadow: `0 0 8px ${cc}88`,
+                                  borderRadius: "2px"
+                                }}/>
+                              </div>
+
+                              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "9px", color: T.muted, fontFamily: "'Inter', sans-serif", marginBottom: "8px" }}>
+                                <span>{card.count} transaction{card.count > 1 ? "s" : ""}</span>
+                                <span>{cardShare.toFixed(1)}% of CC spent</span>
+                              </div>
+
+                              {/* Yearly breakdown list */}
+                              <div style={{ borderTop: `1px dashed ${T.border}`, paddingTop: "8px" }}>
+                                <div style={{ fontSize: "8px", letterSpacing: "1.5px", color: cc + "88", fontFamily: "'Inter', sans-serif", marginBottom: "4px", textTransform: "uppercase" }}>
+                                  Yearly Spent Breakdown
+                                </div>
+                                <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                                  {Object.entries(card.yearlySpend).sort((a,b) => b[0] - a[0]).map(([year, amount]) => (
+                                    <div key={year} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "10px", fontFamily: "'Inter', sans-serif" }}>
+                                      <span style={{ color: T.dim }}>{year}</span>
+                                      <span style={{ fontWeight: 600, color: "#d0cce8" }}>{fmt(amount)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            </div>
                           );
                         })}
                       </div>
@@ -2641,7 +3400,8 @@ export default function App() {
                             }}
                           >
                             <option value="" style={{ background: T.raised }}>SELECT FORM</option>
-                            {categoryOptions.map((cat) => (
+                            <option value="Credit Card Bill" style={{ background: T.raised }}>💳 CREDIT CARD BILL</option>
+                            {categoryOptions.filter(cat => cat !== "Credit Card Bill").map((cat) => (
                               <option key={cat} value={cat} style={{ background: T.raised }}>
                                 {cat.toUpperCase()}
                               </option>
@@ -3080,15 +3840,410 @@ export default function App() {
             <ol style={{ margin: 0, paddingLeft: "16px", color: "#d0cce8", fontSize: "11px", display: "flex", flexDirection: "column", gap: "8px", lineHeight: 1.4 }}>
               <li>Open your Google Sheet and click the blue <strong>Share</strong> button in the top right.</li>
               <li>Under General access, change restriction to <strong>"Anyone with the link can view"</strong>.</li>
-              <li>Make sure the sheet has columns titled exactly: <strong>Date</strong>, <strong>Expense</strong>, <strong>Amount</strong>, and <strong>Category</strong>.</li>
-              <li>To write data from the app, open your Sheet ➔ click <strong>Extensions</strong> ➔ <strong>Apps Script</strong>.</li>
-              <li>Paste your `doPost` Apps Script code, and click <strong>Deploy</strong> ➔ <strong>New deployment</strong>.</li>
-              <li>Choose <strong>Web app</strong>. Execute as: <strong>Me</strong>, and Who has access: <strong>Anyone</strong>.</li>
-              <li>Copy the Web App URL and paste it in the Web App field above!</li>
+              <li>Make sure the sheet has columns titled exactly: <strong>Date</strong>, <strong>Expense</strong>, <strong>Amount</strong>, <strong>Category</strong>, and <strong>PaymentType</strong>.</li>
+              <li>To handle add, edit, and delete syncs, open your Sheet ➔ click <strong>Extensions</strong> ➔ <strong>Apps Script</strong>.</li>
+              <li>Deploy this script (Web app, Execute as: <strong>Me</strong>, Access: <strong>Anyone</strong>):</li>
+              <details style={{ marginTop: "6px", cursor: "pointer" }}>
+                <summary style={{ fontSize: "10px", color: T.primary, fontWeight: 700 }}>📋 CLICK TO SHOW APPS SCRIPT CODE</summary>
+                <pre style={{
+                  background: T.raised,
+                  color: T.dim,
+                  padding: "8px",
+                  borderRadius: "6px",
+                  fontSize: "8px",
+                  fontFamily: "'JetBrains Mono', monospace",
+                  overflowX: "auto",
+                  marginTop: "6px",
+                  maxHeight: "150px",
+                  border: `1px solid ${T.primary}22`
+                }}>
+{`function doPost(e) {
+  try {
+    var data = JSON.parse(e.postData.contents);
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+    var action = data.action || "add";
+    
+    if (action === "add") {
+      sheet.appendRow([data.date, data.expense, data.amount, data.category, data.paymentType]);
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Logged strike" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    var values = sheet.getDataRange().getDisplayValues();
+    var headers = values[0];
+    var dateIdx = headers.indexOf("Date");
+    var expenseIdx = headers.indexOf("Expense");
+    var amountIdx = headers.indexOf("Amount");
+    var categoryIdx = headers.indexOf("Category");
+    var paymentTypeIdx = headers.indexOf("PaymentType");
+    
+    if (dateIdx === -1 || expenseIdx === -1 || amountIdx === -1 || categoryIdx === -1) {
+      throw new Error("Required sheet columns missing");
+    }
+    
+    function stripAmount(val) {
+      if (typeof val === 'number') return val;
+      return Number(String(val || '0').replace(/[^\\d.-]/g, ''));
+    }
+    
+    var foundRowIdx = -1;
+    if (action === "edit" || action === "delete") {
+      var original = action === "edit" ? data.original : data;
+      var origDate = String(original.date || "").trim();
+      var origExpense = String(original.expense || "").trim().toLowerCase();
+      var origAmount = stripAmount(original.amount);
+      var origCategory = String(original.category || "").trim().toLowerCase();
+      var origPaymentType = String(original.paymentType || "NA").trim().toLowerCase();
+      
+      for (var r = 1; r < values.length; r++) {
+        var rowDate = String(values[r][dateIdx] || "").trim();
+        var rowExpense = String(values[r][expenseIdx] || "").trim().toLowerCase();
+        var rowAmount = stripAmount(values[r][amountIdx]);
+        var rowCategory = String(values[r][categoryIdx] || "").trim().toLowerCase();
+        var rowPaymentType = paymentTypeIdx !== -1 ? String(values[r][paymentTypeIdx] || "NA").trim().toLowerCase() : "na";
+        
+        if (rowDate === origDate &&
+            rowExpense === origExpense &&
+            Math.abs(rowAmount - origAmount) < 0.01 &&
+            rowCategory === origCategory &&
+            (paymentTypeIdx === -1 || rowPaymentType === origPaymentType)) {
+          foundRowIdx = r + 1;
+          break;
+        }
+      }
+    }
+    
+    if (foundRowIdx === -1) {
+      throw new Error("Matching transaction row not found in sheet");
+    }
+    
+    if (action === "delete") {
+      sheet.deleteRow(foundRowIdx);
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Deleted strike" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    if (action === "edit") {
+      var updated = data.updated;
+      sheet.getRange(foundRowIdx, dateIdx + 1).setValue(updated.date);
+      sheet.getRange(foundRowIdx, expenseIdx + 1).setValue(updated.expense);
+      sheet.getRange(foundRowIdx, amountIdx + 1).setValue(updated.amount);
+      sheet.getRange(foundRowIdx, categoryIdx + 1).setValue(updated.category);
+      if (paymentTypeIdx !== -1) {
+        sheet.getRange(foundRowIdx, paymentTypeIdx + 1).setValue(updated.paymentType);
+      }
+      return ContentService.createTextOutput(JSON.stringify({ status: "success", message: "Reforged strike" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  } catch (err) {
+    return ContentService.createTextOutput(JSON.stringify({ status: "error", error: err.toString() }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}`}
+                </pre>
+              </details>
+              <li>Copy the Web App URL and paste it in the Web App URL field above!</li>
             </ol>
           </section>
         </div>
       </aside>
+
+      {/* ── REFORGE STRIKE MODAL OVERLAY ── */}
+      {editingTx && (
+        <div style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(3, 3, 6, 0.75)",
+          backdropFilter: "blur(10px)",
+          WebkitBackdropFilter: "blur(10px)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          zIndex: 99999,
+          padding: "20px",
+          animation: "slideIn 0.35s ease both"
+        }}>
+          <div style={{
+            background: T.panel,
+            border: `1px solid ${T.primary}44`,
+            boxShadow: `0 0 30px ${T.primary}22`,
+            borderRadius: "16px",
+            width: "100%",
+            maxWidth: "400px",
+            overflow: "hidden",
+            position: "relative"
+          }}>
+            {/* Haori top border strip */}
+            <div style={{
+              height: "4px",
+              background: `repeating-linear-gradient(${T.haoriAngle},${T.primary} 0,${T.primary} 10px,transparent 10px,transparent 20px)`
+            }}/>
+            
+            <div style={{ padding: "20px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "16px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+                  <MiniKatana color={T.primary} size={28}/>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "10px", letterSpacing: "2.5px", color: T.primary, fontWeight: 700 }}>
+                    REFORGE STRIKE · 鍛造
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingTx(null)}
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    color: T.muted,
+                    fontSize: "20px",
+                    cursor: "pointer",
+                    lineHeight: 1
+                  }}
+                >
+                  &times;
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEdit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+                <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>STRIKE NAME</span>
+                  <input
+                    required
+                    type="text"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    style={{
+                      background: T.raised,
+                      color: "#fff",
+                      border: `1px solid ${T.primary}22`,
+                      borderRadius: "8px",
+                      padding: "8px 10px",
+                      fontSize: "12px",
+                      outline: "none"
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>AMOUNT (INR)</span>
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    value={editAmount}
+                    onChange={(e) => setEditAmount(e.target.value)}
+                    style={{
+                      background: T.raised,
+                      color: "#fff",
+                      border: `1px solid ${T.primary}22`,
+                      borderRadius: "8px",
+                      padding: "8px 10px",
+                      fontSize: "12px",
+                      outline: "none"
+                    }}
+                  />
+                </label>
+
+                <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>BREATHING FORM</span>
+                  {isEditCustomCategory ? (
+                    <div style={{ display: "flex", gap: "4px" }}>
+                      <input
+                        required
+                        type="text"
+                        placeholder="New category name..."
+                        value={editCustomCategory}
+                        onChange={(e) => setEditCustomCategory(e.target.value)}
+                        style={{
+                          flex: 1,
+                          background: T.raised,
+                          color: "#fff",
+                          border: `1px solid ${T.primary}22`,
+                          borderRadius: "8px",
+                          padding: "8px 10px",
+                          fontSize: "11px",
+                          outline: "none"
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setIsEditCustomCategory(false)}
+                        style={{
+                          background: "transparent",
+                          border: `1px solid ${T.primary}44`,
+                          color: T.primary,
+                          borderRadius: "8px",
+                          padding: "0 8px",
+                          fontSize: "9px",
+                          cursor: "pointer"
+                        }}
+                      >
+                        X
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={editCategory}
+                      onChange={(e) => {
+                        if (e.target.value === "__custom__") {
+                          setIsEditCustomCategory(true);
+                        } else {
+                          setEditCategory(e.target.value);
+                        }
+                      }}
+                      style={{
+                        background: T.raised,
+                        color: "#fff",
+                        border: `1px solid ${T.primary}22`,
+                        borderRadius: "8px",
+                        padding: "8px 10px",
+                        fontSize: "11px",
+                        outline: "none",
+                        cursor: "pointer"
+                      }}
+                    >
+                      <option value="Credit Card Bill" style={{ background: T.raised }}>💳 CREDIT CARD BILL</option>
+                      {categoryOptions.filter(cat => cat !== "Credit Card Bill").map((cat) => (
+                        <option key={cat} value={cat} style={{ background: T.raised }}>
+                          {cat.toUpperCase()}
+                        </option>
+                      ))}
+                      <option value="__custom__" style={{ background: T.raised }}>✨ CREATE NEW FORM...</option>
+                    </select>
+                  )}
+                </label>
+
+                <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>PAYMENT TYPE</span>
+                  {isEditCustomPayment ? (
+                    <div style={{ display: "flex", gap: "4px" }}>
+                      <input
+                        required
+                        type="text"
+                        placeholder="New payment type..."
+                        value={editCustomPayment}
+                        onChange={(e) => setEditCustomPayment(e.target.value)}
+                        style={{
+                          flex: 1,
+                          background: T.raised,
+                          color: "#fff",
+                          border: `1px solid ${T.primary}22`,
+                          borderRadius: "8px",
+                          padding: "8px 10px",
+                          fontSize: "11px",
+                          outline: "none"
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setIsEditCustomPayment(false)}
+                        style={{
+                          background: "transparent",
+                          border: `1px solid ${T.primary}44`,
+                          color: T.primary,
+                          borderRadius: "8px",
+                          padding: "0 8px",
+                          fontSize: "9px",
+                          cursor: "pointer"
+                        }}
+                      >
+                        X
+                      </button>
+                    </div>
+                  ) : (
+                    <select
+                      value={editPaymentType}
+                      onChange={(e) => {
+                        if (e.target.value === "__custom__") {
+                          setIsEditCustomPayment(true);
+                        } else {
+                          setEditPaymentType(e.target.value);
+                        }
+                      }}
+                      style={{
+                        background: T.raised,
+                        color: "#fff",
+                        border: `1px solid ${T.primary}22`,
+                        borderRadius: "8px",
+                        padding: "8px 10px",
+                        fontSize: "11px",
+                        outline: "none",
+                        cursor: "pointer"
+                      }}
+                    >
+                      <option value="UPI" style={{ background: T.raised }}>UPI (🏦)</option>
+                      <option value="Credit Card" style={{ background: T.raised }}>CREDIT CARD (💳)</option>
+                      <option value="Debit Card" style={{ background: T.raised }}>DEBIT CARD (📇)</option>
+                      <option value="Cash" style={{ background: T.raised }}>CASH (💵)</option>
+                      <option value="Net Banking" style={{ background: T.raised }}>NET BANKING (🌐)</option>
+                      <option value="NA" style={{ background: T.raised }}>NA (➖)</option>
+                      <option value="__custom__" style={{ background: T.raised }}>✨ ADD OTHER METHOD...</option>
+                    </select>
+                  )}
+                </label>
+
+                <label style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+                  <span style={{ fontFamily: "'Inter', sans-serif", fontSize: "9px", color: T.dim }}>DATE OF STRIKE</span>
+                  <input
+                    type="date"
+                    required
+                    value={editDate}
+                    onChange={(e) => setEditDate(e.target.value)}
+                    style={{
+                      background: T.raised,
+                      color: "#fff",
+                      border: `1px solid ${T.primary}22`,
+                      borderRadius: "8px",
+                      padding: "8px 10px",
+                      fontSize: "12px",
+                      outline: "none"
+                    }}
+                  />
+                </label>
+
+                <div style={{ display: "flex", gap: "10px", marginTop: "8px" }}>
+                  <button
+                    type="button"
+                    onClick={() => setEditingTx(null)}
+                    style={{
+                      flex: 1,
+                      background: "transparent",
+                      color: T.muted,
+                      border: `1px solid ${T.muted}`,
+                      borderRadius: "10px",
+                      padding: "10px",
+                      fontSize: "11px",
+                      fontFamily: "'Inter', sans-serif",
+                      cursor: "pointer",
+                      fontWeight: 600
+                    }}
+                  >
+                    CANCEL
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmittingExpense}
+                    style={{
+                      flex: 1,
+                      background: T.switchBg,
+                      color: T.switchText,
+                      border: "none",
+                      borderRadius: "10px",
+                      padding: "10px",
+                      fontSize: "11px",
+                      fontFamily: "'Inter', sans-serif",
+                      cursor: isSubmittingExpense ? "not-allowed" : "pointer",
+                      fontWeight: 700,
+                      boxShadow: `0 0 10px ${T.primary}44`
+                    }}
+                  >
+                    {isSubmittingExpense ? "REFORGING..." : "SAVE CHANGES"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
